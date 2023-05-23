@@ -27,16 +27,18 @@ SELECIONA_CENARIO_FUNDO  EQU COMANDOS + 42H		; endereço do comando para selecio
 TOCA_SOM				EQU COMANDOS + 5AH		; endereço do comando para tocar um som
 
 
-LINHA        		EQU  16        ; linha do boneco (a meio do ecrã)
-COLUNA			EQU  30        ; coluna do boneco (a meio do ecrã)
+LINHA        		EQU  0        ; linha do asteroide (a meio do ecrã)
+COLUNA			EQU  0        ; coluna do asteroide (a meio do ecrã)
 
 MIN_COLUNA		EQU  0		; número da coluna mais à esquerda que o objeto pode ocupar
 MAX_COLUNA		EQU  63        ; número da coluna mais à direita que o objeto pode ocupar
-ATRASO			EQU	400H		; atraso para limitar a velocidade de movimento do boneco
+ATRASO			EQU	400H		; atraso para limitar a velocidade de movimento do asteroide
 
-LARGURA			EQU	5		; largura do boneco
+LARGURA			EQU	5		; largura do asteroide
+ALTURA			EQU	5		; altura do asteroide
+
 COR_PIXEL			EQU	0FF00H	; cor do pixel: vermelho em ARGB (opaco e vermelho no máximo, verde e azul a 0)
-
+COR_PIXEL_INTERIOR    EQU 0FFA0H ; cor do pixel: laranja em ARGB (opaco e vermelho no máximo, verde a 10 e azul a 0)
 ; *********************************************************************************
 ; * Dados 
 ; *********************************************************************************
@@ -48,10 +50,14 @@ SP_inicial:				; este é o endereço (1200H) com que o SP deve ser
 						; inicializado. O 1.º end. de retorno será 
 						; armazenado em 11FEH (1200H-2)
 							
-DEF_BONECO:					; tabela que define o boneco (cor, largura, pixels)
+DEF_ASTEROIDE:					; tabela que define o asteroide (cor, largura, pixels)
 	WORD		LARGURA
+  WORD    ALTURA
 	WORD		COR_PIXEL, 0, COR_PIXEL, 0, COR_PIXEL		; # # #   as cores podem ser diferentes de pixel para pixel
-     
+  WORD		0, COR_PIXEL_INTERIOR, COR_PIXEL_INTERIOR, COR_PIXEL_INTERIOR, 0
+  WORD    COR_PIXEL,COR_PIXEL_INTERIOR,0,COR_PIXEL_INTERIOR,COR_PIXEL
+  WORD		0, COR_PIXEL_INTERIOR, COR_PIXEL_INTERIOR, COR_PIXEL_INTERIOR, 0
+	WORD		COR_PIXEL, 0, COR_PIXEL, 0, COR_PIXEL
 
 ; *********************************************************************************
 ; * Código
@@ -66,6 +72,7 @@ inicio:
 	 MOV	R1, 0			; cenário de fundo número 0
      MOV  [SELECIONA_CENARIO_FUNDO], R1	; seleciona o cenário de fundo
      
+    CALL rotina_desenha_asteroide
 repete:   
 	CALL	teclado			; leitura às teclas
 
@@ -75,7 +82,11 @@ repete:
 	MOV R5, DISPLAYS
     MOV [R5], R9 
 
+  
+
+
 	JMP repete
+
 
 
 
@@ -159,3 +170,76 @@ final_converte:
     POP R1
     POP R0
     RET
+
+
+; **********************************************************************
+; Rotina
+; desenha asteróide com formato 
+;
+;PARAMETROS: R1 - numero da linha premida
+;            R0 - numero da coluna
+; RETORNA: R2 - variável de controlo
+; **********************************************************************
+rotina_desenha_asteroide:
+    PUSH R1 
+    PUSH R3
+    PUSH R4 
+    PUSH R5
+    PUSH R6
+
+posição_inicial_asteroide:
+    MOV  R1, LINHA			; linha do asteroide
+    MOV  R2, COLUNA		; coluna do asteroide
+
+desenha_asteroide:       		; desenha o asteroide a partir da tabela
+	  MOV	R4, DEF_ASTEROIDE		; endereço da tabela que define o asteroide
+	  MOV	R5, [R4]			; obtém a largura do asteroide´
+    ADD R4, 2               ; endereço da altura do asteroide
+	  MOV R6, [R4]            ; obtém a altura
+	  ADD	R4, 2			; endereço da cor do 1º pixel (2 porque a largura é uma word)
+
+desenha_todos_pixels:
+    CMP R6, 0           ;verifica se a altura é 0, se sim termina
+    JZ final_desenha_asteroide
+
+    MOV R2, COLUNA           ;reinicia a coluna para o seu valor inicial
+    CALL desenha_pixels_coluna           ; se a altura não for 0 vai desenhar os pixels da primeira linha livre
+    ADD R1, 1           ; próxima linha
+    
+    SUB R6, 1           ; menos uma linha para tratar
+
+    JMP desenha_todos_pixels        ; continua até percorrer toda a tabela 
+
+final_desenha_asteroide:
+    MOV R2, 0   ; retorna 0 para servir de controlo
+
+	  POP R6
+	  POP R5
+	  POP R4
+	  POP R3
+	  POP R1 
+	  RET
+
+desenha_pixels_coluna:       		; desenha os pixels do asteroide a partir da tabela
+    PUSH R1
+    PUSH R2
+    PUSH R3
+    PUSH R5
+
+preenche_pixel:
+	  MOV	R3, [R4]			; obtém a cor do próximo pixel do asteroide
+	  MOV  [DEFINE_LINHA], R1	; seleciona a linha
+	  MOV  [DEFINE_COLUNA], R2	; seleciona a coluna
+	  MOV  [DEFINE_PIXEL], R3	; altera a cor do pixel na linha e coluna selecionadas
+	  ADD	R4, 2			; endereço da cor do próximo pixel (2 porque cada cor de pixel é uma word)
+    ADD  R2, 1               ; próxima coluna
+    SUB  R5, 1			; menos uma coluna para tratar
+    JNZ  preenche_pixel      ; continua até percorrer toda a largura do objeto
+
+    POP R5
+    POP R3
+    POP R2
+    POP R1
+    RET
+
+; **********************************************************************
