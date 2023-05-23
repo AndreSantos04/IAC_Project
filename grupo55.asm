@@ -37,8 +37,10 @@ ATRASO			EQU	400H		; atraso para limitar a velocidade de movimento do asteroide
 LARGURA			EQU	5		; largura do asteroide
 ALTURA			EQU	5		; altura do asteroide
 
-COR_PIXEL			EQU	0FF00H	; cor do pixel: vermelho em ARGB (opaco e vermelho no máximo, verde e azul a 0)
-COR_PIXEL_INTERIOR    EQU 0FFA0H ; cor do pixel: laranja em ARGB (opaco e vermelho no máximo, verde a 10 e azul a 0)
+VERMELHO_PIXEL			EQU	0FF00H	; cor do pixel: vermelho em ARGB (opaco e vermelho no máximo, verde e azul a 0)
+LARANJA_PIXEL       EQU 0FFA0H ; cor do pixel: laranja em ARGB (opaco e vermelho no máximo, verde a 10 e azul a 0)
+VERDE_PIXEL         EQU 0F5F2H ; cor do pixel: verde em ARGB (opaco e verde no máximo, vermelho e azul a 0)
+AZUL_CIANO_PIXEL      EQU 0F0FFH
 ; *********************************************************************************
 ; * Dados 
 ; *********************************************************************************
@@ -50,14 +52,34 @@ SP_inicial:				; este é o endereço (1200H) com que o SP deve ser
 						; inicializado. O 1.º end. de retorno será 
 						; armazenado em 11FEH (1200H-2)
 							
-DEF_ASTEROIDE:					; tabela que define o asteroide (cor, largura, pixels)
+DEF_ASTEROIDE_N_MINERAVEL:					; tabela que define o asteroide não minerável (largura, altura, pixels e sua cor)
 	WORD		LARGURA
   WORD    ALTURA
-	WORD		COR_PIXEL, 0, COR_PIXEL, 0, COR_PIXEL		; # # #   as cores podem ser diferentes de pixel para pixel
-  WORD		0, COR_PIXEL_INTERIOR, COR_PIXEL_INTERIOR, COR_PIXEL_INTERIOR, 0
-  WORD    COR_PIXEL,COR_PIXEL_INTERIOR,0,COR_PIXEL_INTERIOR,COR_PIXEL
-  WORD		0, COR_PIXEL_INTERIOR, COR_PIXEL_INTERIOR, COR_PIXEL_INTERIOR, 0
-	WORD		COR_PIXEL, 0, COR_PIXEL, 0, COR_PIXEL
+	WORD		VERMELHO_PIXEL, 0, VERMELHO_PIXEL, 0, VERMELHO_PIXEL		
+  WORD		0, LARANJA_PIXEL, LARANJA_PIXEL, LARANJA_PIXEL, 0
+  WORD    VERMELHO_PIXEL,LARANJA_PIXEL,0,LARANJA_PIXEL,VERMELHO_PIXEL
+  WORD		0, LARANJA_PIXEL, LARANJA_PIXEL, LARANJA_PIXEL, 0
+	WORD		VERMELHO_PIXEL, 0, VERMELHO_PIXEL, 0, VERMELHO_PIXEL
+  
+
+DEF_ASTEROIDE_MINERAVEL:					; tabela que define o asteroide minerável 
+	WORD		LARGURA
+  WORD    ALTURA
+	WORD		0, VERDE_PIXEL, VERDE_PIXEL, VERDE_PIXEL, 0		
+  WORD		VERDE_PIXEL, VERDE_PIXEL, VERDE_PIXEL, VERDE_PIXEL, VERDE_PIXEL
+  WORD    VERDE_PIXEL, VERDE_PIXEL, VERDE_PIXEL, VERDE_PIXEL, VERDE_PIXEL
+  WORD		VERDE_PIXEL, VERDE_PIXEL, VERDE_PIXEL, VERDE_PIXEL, VERDE_PIXEL
+	WORD		0, VERDE_PIXEL, VERDE_PIXEL, VERDE_PIXEL, 0	
+
+DEF_EXPLOSAO_ASTEROIDE:					; tabela que define o asteroide quando explode 
+	WORD		LARGURA
+  WORD    ALTURA
+	WORD		0, AZUL_CIANO_PIXEL, 0, AZUL_CIANO_PIXEL, 0		
+  WORD		AZUL_CIANO_PIXEL, 0, AZUL_CIANO_PIXEL, 0, AZUL_CIANO_PIXEL
+  WORD    0, AZUL_CIANO_PIXEL, 0, AZUL_CIANO_PIXEL, 0
+  WORD		AZUL_CIANO_PIXEL, 0, AZUL_CIANO_PIXEL, 0, AZUL_CIANO_PIXEL
+	WORD		0, AZUL_CIANO_PIXEL, 0, AZUL_CIANO_PIXEL, 0	
+
 
 ; *********************************************************************************
 ; * Código
@@ -174,11 +196,11 @@ final_converte:
 
 ; **********************************************************************
 ; Rotina
-; desenha asteróide com formato 
+; desenha asteroide dos não mineráveis
 ;
 ;PARAMETROS: R1 - numero da linha premida
 ;            R0 - numero da coluna
-; RETORNA: R2 - variável de controlo
+;
 ; **********************************************************************
 rotina_desenha_asteroide:
     PUSH R1 
@@ -187,54 +209,53 @@ rotina_desenha_asteroide:
     PUSH R5
     PUSH R6
 
-posição_inicial_asteroide:
-    MOV  R1, LINHA			; linha do asteroide
-    MOV  R2, COLUNA		; coluna do asteroide
+    posição_inicial_asteroide:
+        MOV  R1, LINHA			; linha do asteroide
+        MOV  R2, COLUNA		; coluna do asteroide
 
-desenha_asteroide:       		; desenha o asteroide a partir da tabela
-	  MOV	R4, DEF_ASTEROIDE		; endereço da tabela que define o asteroide
-	  MOV	R5, [R4]			; obtém a largura do asteroide´
-    ADD R4, 2               ; endereço da altura do asteroide
-	  MOV R6, [R4]            ; obtém a altura
-	  ADD	R4, 2			; endereço da cor do 1º pixel (2 porque a largura é uma word)
+    desenha_asteroide:       		; desenha o asteroide a partir da tabela
+        MOV	R4, DEF_ASTEROIDE_N_MINERAVEL	; endereço da tabela que define o asteroide
+        MOV	R5, [R4]			; obtém a largura do asteroide´
+        ADD R4, 2               ; endereço da altura do asteroide
+        MOV R6, [R4]            ; obtém a altura
+        ADD	R4, 2			; endereço da cor do 1º pixel (2 porque a largura é uma word)
 
-desenha_todos_pixels:
-    CMP R6, 0           ;verifica se a altura é 0, se sim termina
-    JZ final_desenha_asteroide
+    desenha_todos_pixels:
+        CMP R6, 0           ;verifica se a altura é 0, se sim termina
+        JZ final_desenha_asteroide
 
-    MOV R2, COLUNA           ;reinicia a coluna para o seu valor inicial
-    CALL desenha_pixels_coluna           ; se a altura não for 0 vai desenhar os pixels da primeira linha livre
-    ADD R1, 1           ; próxima linha
-    
-    SUB R6, 1           ; menos uma linha para tratar
+        MOV R2, COLUNA           ;reinicia a coluna para o seu valor inicial
+        CALL desenha_pixels_coluna           ; se a altura não for 0 vai desenhar os pixels da primeira linha livre
+        ADD R1, 1           ; próxima linha
+        
+        SUB R6, 1           ; menos uma linha para tratar
 
-    JMP desenha_todos_pixels        ; continua até percorrer toda a tabela 
+        JMP desenha_todos_pixels        ; continua até percorrer toda a tabela 
 
-final_desenha_asteroide:
-    MOV R2, 0   ; retorna 0 para servir de controlo
+    final_desenha_asteroide:
 
-	  POP R6
-	  POP R5
-	  POP R4
-	  POP R3
-	  POP R1 
-	  RET
+        POP R6
+        POP R5
+        POP R4
+        POP R3
+        POP R1 
+        RET
 
-desenha_pixels_coluna:       		; desenha os pixels do asteroide a partir da tabela
-    PUSH R1
-    PUSH R2
-    PUSH R3
-    PUSH R5
+    desenha_pixels_coluna:       		; desenha os pixels do asteroide a partir da tabela
+        PUSH R1
+        PUSH R2
+        PUSH R3
+        PUSH R5
 
-preenche_pixel:
-	  MOV	R3, [R4]			; obtém a cor do próximo pixel do asteroide
-	  MOV  [DEFINE_LINHA], R1	; seleciona a linha
-	  MOV  [DEFINE_COLUNA], R2	; seleciona a coluna
-	  MOV  [DEFINE_PIXEL], R3	; altera a cor do pixel na linha e coluna selecionadas
-	  ADD	R4, 2			; endereço da cor do próximo pixel (2 porque cada cor de pixel é uma word)
-    ADD  R2, 1               ; próxima coluna
-    SUB  R5, 1			; menos uma coluna para tratar
-    JNZ  preenche_pixel      ; continua até percorrer toda a largura do objeto
+    preenche_pixel:
+        MOV	R3, [R4]			; obtém a cor do próximo pixel do asteroide
+        MOV  [DEFINE_LINHA], R1	; seleciona a linha
+        MOV  [DEFINE_COLUNA], R2	; seleciona a coluna
+        MOV  [DEFINE_PIXEL], R3	; altera a cor do pixel na linha e coluna selecionadas
+        ADD	R4, 2			; endereço da cor do próximo pixel (2 porque cada cor de pixel é uma word)
+        ADD  R2, 1               ; próxima coluna
+        SUB  R5, 1			; menos uma coluna para tratar
+        JNZ  preenche_pixel      ; continua até percorrer toda a largura do objeto
 
     POP R5
     POP R3
