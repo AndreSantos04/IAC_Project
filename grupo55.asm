@@ -145,7 +145,10 @@ repete:
     MOV R2, DEF_ASTEROIDE_N_MINERAVEL
     CALL rotina_nave_asteroides ; desenha o asteroide se ainda não estiver desenhado
   
-	CALL teclado			; leitura às teclas
+espera_tecla:   
+    CALL teclado			; leitura às teclas
+    CMP R1, 0
+    JZ espera_tecla
 
 
     CALL converte_numero   ; retorna R9 com a tecla premida
@@ -155,7 +158,6 @@ repete:
     
 
 	  JMP repete
-
 
 
 
@@ -172,15 +174,13 @@ teclado:
 	PUSH	R3
 	PUSH	R5
 
-
-loop_linha:
     MOV R1, LINHA_TECLADO   ; por linha a 0001 0000 - para testar qual das linhas foi clicada
 
-espera_tecla:
+loop_linha:
     SHR R1, 1           ; dividir por 2 para testar as varias linhas do teclado
-	JZ  loop_linha      ; se for zero recomeçar o ciclo, caso contrario testar colunas 
-
-
+    CMP R1, 0
+    JZ exit
+	 
 	MOV  R2, TEC_LIN   ; endereço do periférico das linhas
 	MOV  R3, TEC_COL   ; endereço do periférico das colunas
 	MOV  R5, MASCARA   ; para isolar os 4 bits de menor peso, ao ler as colunas do teclado
@@ -188,13 +188,21 @@ espera_tecla:
 	MOVB R0, [R3]      ; ler do periférico de entrada (colunas)
 	AND  R0, R5        ; elimina bits para além dos bits 0-3
 	CMP	R0, 0
-	JZ espera_tecla		; se nenhuma tecla premida, repete
+	JZ loop_linha		; se nenhuma tecla premida, testa linha seguinte
 
+tecla_premida:
+    MOVB [R2], R1      ; escrever no periférico de saída (linhas)
+    MOVB R9, [R3]
+    AND R9, R5
+    CMP R0, R9          ; testar se a coluna e igual
+    JZ tecla_premida
+
+
+exit:
 	POP	R5
 	POP	R3
 	POP	R2
 	RET
-
 
 ; **********************************************************************
 ; Rotina
