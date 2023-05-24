@@ -41,6 +41,12 @@ VERMELHO_PIXEL			EQU	0FF00H	; cor do pixel: vermelho em ARGB (opaco e vermelho n
 LARANJA_PIXEL       EQU 0FFA0H ; cor do pixel: laranja em ARGB (opaco e vermelho no máximo, verde a 10 e azul a 0)
 VERDE_PIXEL         EQU 0F5F2H ; cor do pixel: verde em ARGB (opaco e verde no máximo, vermelho e azul a 0)
 AZUL_CIANO_PIXEL      EQU 0F0FFH
+
+VALOR_INICIAL_DISPLAY EQU 0064H   ; valor inicial do display (100 EM DECIMAL)
+INCREMENTO_DISPLAY EQU 000BH    ; tecla que incrementa o valor do display
+DECREMENTO_DISPLAY EQU 000FH    ; tecla que decremento o valor do display
+SONDA_CIMA         EQU 000AH    ; tecla que move a sonda para cima
+ASTEROIDE_BAIXO    EQU 0002H   ; tecla que move o asteroide para baixo
 ; *********************************************************************************
 ; * Dados 
 ; *********************************************************************************
@@ -93,20 +99,22 @@ inicio:
      MOV  [APAGA_ECRÃ], R1	; apaga todos os pixels já desenhados (o valor de R1 não é relevante)
 	 MOV	R1, 0			; cenário de fundo número 0
      MOV  [SELECIONA_CENARIO_FUNDO], R1	; seleciona o cenário de fundo
-     
+     MOV R11, VALOR_INICIAL_DISPLAY            
+     MOV [DISPLAYS], R11     ; inicializa o display com o valor inicial
     CALL rotina_desenha_asteroide
 repete:   
-	CALL	teclado			; leitura às teclas
-
+	CALL    teclado			; leitura às teclas
 
     CALL converte_numero   ; retorna R9 com a tecla premida
-	
-	MOV R5, DISPLAYS
-    MOV [R5], R9 
 
-  
-
-
+    CALL rotina_acoes_teclado   ;executa as acoes de acordo com a tecla premida
+    NOP
+    NOP
+    NOP
+    NOP
+    NOP
+    NOP
+    NOP
 	JMP repete
 
 
@@ -124,6 +132,7 @@ teclado:
 	PUSH	R3
 	PUSH	R5
 
+
 loop_linha:
     MOV R1, LINHA_TECLADO   ; por linha a 0001 0000 - para testar qual das linhas foi clicada
 
@@ -140,7 +149,6 @@ espera_tecla:
 	AND  R0, R5        ; elimina bits para além dos bits 0-3
 	CMP	R0, 0
 	JZ espera_tecla		; se nenhuma tecla premida, repete
-
 
 	POP	R5
 	POP	R3
@@ -264,3 +272,50 @@ rotina_desenha_asteroide:
     RET
 
 ; **********************************************************************
+
+
+
+; **********************************************************************
+; Rotina
+; Executa a acao correspondente a tecla premida
+;
+;PARAMETROS: R9 - tecla clicada
+;            R11 - valor apresentado no display (hexadecimal)
+; **********************************************************************
+
+rotina_acoes_teclado:
+    PUSH R0
+    PUSH R1
+    PUSH R2
+    PUSH R3
+    PUSH R4
+
+    MOV R0, INCREMENTO_DISPLAY  ; tecla referente ao incremento do display
+    MOV R1, DECREMENTO_DISPLAY  ; tecla referente ao decremento do display
+    MOV R2, SONDA_CIMA          ; tecla referente ao movimento da sonda para cima
+    MOV R3, ASTEROIDE_BAIXO     ; tecla referente ao movimento do asteroide para baixo
+    MOV R4, DISPLAYS            ; endereço do display
+
+    CMP R9, R0
+    JZ incrementa_display       ; procede ao incremento do valor do display
+    CMP R9, R1
+    JZ decrementa_display       ; procede ao decremento do valor do display
+    JMP fim_rotina_acoes_teclado
+
+incrementa_display:
+    ADD R11, 1                  ; incrementa o valor do display
+    MOV [R4], R11               ; atualiza o valor do display
+    JMP fim_rotina_acoes_teclado
+decrementa_display:
+    SUB R11, 1                  ; decrementa o valor do display
+    MOV [R4], R11               ; atualiza o valor do display
+    JMP fim_rotina_acoes_teclado
+
+fim_rotina_acoes_teclado:
+
+    POP R4
+    POP R3
+    POP R2
+    POP R1
+    POP R0
+    RET
