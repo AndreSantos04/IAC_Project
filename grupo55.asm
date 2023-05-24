@@ -137,7 +137,7 @@ repete:
 	  MOV R5, DISPLAYS
     MOV [R5], R9 
 
-
+    
 
 	  JMP repete
 
@@ -234,7 +234,7 @@ final_converte:
 ;
 ;RETORNA: R10 - Registo para controlar se já existe asteroide ou não 
 ; **********************************************************************
-rotina_nave_asteroides:
+rotina_nave_asteroides: ; Deposita os valores dos registos abaixo no stack
     PUSH R1 
     PUSH R3
     PUSH R4 
@@ -288,7 +288,7 @@ rotina_nave_asteroides:
     
     
 
-    final_desenha_asteroide_nave:
+    final_desenha_asteroide_nave: ; volta a atribuir os valores acumulados no stack aos devidos registos
 
         POP R7
         POP R6
