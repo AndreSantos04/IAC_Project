@@ -146,7 +146,7 @@ repete:
 espera_tecla:   
     CALL teclado			; leitura às teclas
     CMP R1, 0
-    JZ espera_tecla	; espera por nova tecla ser premida
+    JZ espera_tecla
 
     CALL converte_numero   ; retorna R9 com a tecla premida
 	
@@ -187,12 +187,19 @@ loop_linha:
 	CMP	R0, 0
 	JZ loop_linha		; se nenhuma tecla premida, testa linha seguinte
 
+tecla_premida:
+    MOVB [R2], R1      ; escrever no periférico de saída (linhas)
+    MOVB R9, [R3]
+    AND R9, R5
+    CMP R0, R9          ; testar se a coluna e igual
+    JZ tecla_premida
+
+
 exit:
 	POP	R5
 	POP	R3
 	POP	R2
 	RET
-
 
 ; **********************************************************************
 ; Rotina
