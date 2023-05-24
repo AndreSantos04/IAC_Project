@@ -5,8 +5,8 @@
 
 
 ;TODO - MOVIMENTAÇÃO DA SONDA/ASTEROIDE E METER TUDO A APARECER SÓ APOS O INICIO DO JOGO
-;       SOM ASTERÓIDE A CADA TOQUE
 ;       CONVERSAO HEXADECIMAL PARA DECIMAL PARA O DISPLAY
+;       SONS PARA OS INICIO E PARA A PAUSA +EXPLOSAO
 
 
 ; *********************************************************************************
@@ -72,7 +72,7 @@ MAX_VALOR_DISPLAY  EQU 03E7H    ; valor maximo do display
 
 ; * Constantes - MEDIA CENTER
 SOM_DISPARO        EQU 2
-SOM_INICIO         EQU 1
+SOM_ASTEROIDE         EQU 1
 
 IMAGEM_INICIO      EQU 0
 IMAGEM_JOGO        EQU 1
@@ -408,6 +408,8 @@ rotina_acoes_teclado:
     JZ decrementa_display       ; procede ao decremento do valor do display
     CMP R9, R2
     JZ movimento_sonda_cima     ; procede ao movimento da sonda para cima
+    CMP R9, R3
+    JZ movimento_asteroide_baixo ; procede ao movimento do asteroide para baixo na diagonal
     JMP fim_rotina_acoes_teclado
 
 incrementa_display:
@@ -430,18 +432,22 @@ decrementa_display:
 
 movimento_sonda_cima:
     MOV R7, SOM_DISPARO
-    MOV [TOCA_SOM], R7
+    MOV [TOCA_SOM], R7          ; toca o som do disparo da sonda
     JMP fim_rotina_acoes_teclado
-    
+
+movimento_asteroide_baixo:
+    MOV R7, SOM_ASTEROIDE
+    MOV [TOCA_SOM], R7          ; toca o som do movimento do asteroide
+    JMP fim_rotina_acoes_teclado   
 
 jogo_comeca:
 
-    CALL rotina_jogo_comeca
+    CALL rotina_jogo_comeca     ; inicia o jogo
     JMP fim_rotina_acoes_teclado
 
 jogo_pausa:
 
-    CALL rotina_jogo_pausado
+    CALL rotina_jogo_pausado    ;coloca/retira o jogo da pausa
     JMP fim_rotina_acoes_teclado
 
 fim_rotina_acoes_teclado:
@@ -473,8 +479,7 @@ rotina_jogo_comeca:
 
     MOV R11, VALOR_INICIAL_DISPLAY            
     MOV [DISPLAYS], R11     ; inicializa o display com o valor inicial 
-    MOV R8, SOM_INICIO
-    MOV [TOCA_SOM], R8      ; toca o som do inicio jogo (som spaceship)
+
     MOV R8, 1
 fim_jogo_comeca: 
 
@@ -484,7 +489,7 @@ fim_jogo_comeca:
 
 ;**********************************************************************
 ; Rotina
-; Pausa o jogo
+; Pausa o jogo ou retira o jogo da pausa
 ; PARAMETROS: R8 - estado do jogo
 ;**********************************************************************
 
