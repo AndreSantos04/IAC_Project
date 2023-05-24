@@ -4,6 +4,10 @@
 ;   88571 - Artur Miguel e Gaio Lopes dos Santos Pinto
 
 
+;TODO - MOVIMENTAÇÃO DA SONDA/ASTEROIDE E METER TUDO A APARECER SÓ APOS O INICIO DO JOGO
+;       SOM ASTERÓIDE A CADA TOQUE
+;       CONVERSAO HEXADECIMAL PARA DECIMAL PARA O DISPLAY
+
 
 ; *********************************************************************************
 ; * Constantes
@@ -80,7 +84,7 @@ IMAGEM_PAUSE       EQU 2
 ; *********************************************************************************
 ; * Registos usados globalmente: (Vamos escrevendo para termos noção dos registos já utilizados)
 ; Como input: R0, R1, R2 (podem ser alterados após o seu uso nas rotinas)
-; Como output: R9, R10, R11 (não convém serem alterados)
+; Como output: R8, R9, R10, R11 (não convém serem alterados)
 
 ; *********************************************************************************
 
