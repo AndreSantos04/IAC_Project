@@ -138,6 +138,9 @@ inicio:
     MOV R10, 0 ; Inicializa o registo 10 que vai servir para controlo do desenho do asteroide 
     MOV R2, DEF_NAVE ; Inicializa o registo 2 que vai indicar que boneco desenhar
     
+
+
+   
     CALL rotina_nave_asteroides  
 
 repete: 
@@ -157,7 +160,7 @@ espera_tecla:
 
     
 
-	  JMP repete
+	JMP repete
 
 
 
@@ -388,7 +391,7 @@ incrementa_display:
     CMP R11,  R7           ; valor maximo a apresentar no display
     JGE fim_rotina_acoes_teclado ; se o valor do display for o maximo, não incrementa
     ADD R11, 1                  ; incrementa o valor do display
-;    CALL rotina_converte_hexdec      ; converte o valor do display para decimal
+    ;CALL rotina_converte_hexdec      ; converte o valor do display para decimal
     MOV [R4], R11             ; atualiza o valor do display
     JMP fim_rotina_acoes_teclado
 
@@ -396,8 +399,8 @@ decrementa_display:
     CMP R11, R6             ; valor minimo a apresentar no display
     JLE fim_rotina_acoes_teclado ; se o valor do display for o minimo, não decrementa
     SUB R11, 1                  ; decrementa o valor do display
-;    CALL rotina_converte_hexdec      ; converte o valor do display para decimal
-    MOV [R4], R11             ; atualiza o valor do display
+    ;CALL rotina_converte_hexdec      ; converte o valor do display para decimal
+    MOV [R4], R11            ; atualiza o valor do display
     JMP fim_rotina_acoes_teclado
 
 movimento_sonda_cima:
@@ -424,44 +427,48 @@ fim_rotina_acoes_teclado:
 ; PARAMETROS: R11 - valor hexadecimal
 ; RETORNO: R5 - valor decimal
 ; **********************************************************************
-rotina_converte_hexdec:
-    PUSH R1
-    PUSH R2
-    PUSH R3
-    PUSH R4
-    PUSH R6
-    PUSH R7
-
-    MOV R1, 16
-    MOV R2, 1   ; Registo que vai guardar a potencia de 16
-    MOV R3, R11  ; Registo que vai guardar o valor hexadecimal
-    MOV R4, MASCARA_HEXADECIMAL    ; Registo que vai guardar a máscara para isolar o ultimo digito do valor hexadecimal
-    MOV R5, 0    ; Registo que vai guardar o o valor decimal
-    MOV R7, 000AH   ; Registo que vai guardar o valor 10
-ciclo_converte_hexdec:
-    CMP R3, 0    ; Verifica se o valor hexadecimal é 0
-    JZ fim_rotina_converte_hexdec ; Se for 0, termina a rotina
-    MOV R6, R3    ; Guarda o valor hexadecimal no registo R6
-    AND R6, R4    ; Faz a máscara do valor hexadecimal, isola o ultimo digito
-
-    CMP R6, R7    ; Verifica se o valor hexadecimal é maior que 9
-    JLE conversor_hexdec
-    SUB R6, 7     ; Se for maior que 9, soma 7 para obter o valor correspondente em decimal
-
-conversor_hexdec:
-    MUL R6, R2      ; Multiplica o valor hexadecimal pela potência de 16
-    ADD R5, R6
-    SHl R3, 4       ; Divide o valor hexadecimal por 16
-    
-    MUL R2, R1      ; Multiplica o valor 16 pela potência de 16
-    JMP ciclo_converte_hexdec   ; Repete o ciclo até o valor hexadecimal ser 0
-
-fim_rotina_converte_hexdec:
-    
-    POP R7
-    POP R6
-    POP R4
-    POP R3
-    POP R2
-    POP R1
-    RET
+;rotina_converte_hexdec:
+;    PUSH R1
+;    PUSH R2
+;    PUSH R3
+;    PUSH R4
+;    PUSH R6
+;    PUSH R7
+;    PUSH R8
+;
+;    MOV R1, 16
+;    MOV R2, 1   ; Registo que vai guardar a potencia de 16
+;    MOV R3, R11  ; Registo que vai guardar o valor hexadecimal
+;    MOV R4, MASCARA_HEXADECIMAL    ; Registo que vai guardar a máscara para isolar o ultimo digito do valor hexadecimal
+;    MOV R5, 0    ; Registo que vai guardar o o valor decimal
+;    MOV R7, 000AH   ; Registo que vai guardar o valor 10
+;    MOV R8, 0H
+;ciclo_converte_hexdec:
+;    
+;    CMP R3, 0    ; Verifica se o valor hexadecimal é 0
+;    JZ fim_rotina_converte_hexdec ; Se for 0, termina a rotina
+;    MOV R6, R3    ; Guarda o valor hexadecimal no registo R6
+;    AND R6, R4    ; Faz a máscara do valor hexadecimal, isola o ultimo digito
+;
+;    MOD R6, R7    ; Verifica se o valor hexadecimal é maior que 9
+;
+;conversor_hexdec:
+;    ;MUL R6, R2      ; Multiplica o valor hexadecimal pela potência de 16
+;
+;    SHL R6, R8
+;    ADD R5, R6
+;    SHR R3, 4       ; Divide o valor hexadecimal por 16
+;    ADD R8, 4      
+;    ;MUL R2, R1      ; Multiplica o valor 16 pela potência de 16
+;    JMP ciclo_converte_hexdec   ; Repete o ciclo até o valor hexadecimal ser 0
+;
+;fim_rotina_converte_hexdec:
+;    
+;    POP R8
+;    POP R7
+;    POP R6
+;    POP R4
+;    POP R3
+;    POP R2
+;    POP R1
+;    RET
