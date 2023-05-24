@@ -60,6 +60,8 @@ DECREMENTO_DISPLAY EQU 000FH    ; tecla que decremento o valor do display
 SONDA_CIMA         EQU 000AH    ; tecla que move a sonda para cima
 ASTEROIDE_BAIXO    EQU 0002H   ; tecla que move o asteroide para baixo
 
+MASCARA_HEXADECIMAL EQU 000FH	; mascara para isolar o ultimo digito hexadecimal
+
 ; *********************************************************************************
 ; * Registos usados globalmente: (Vamos escrevendo para termos noção dos registos já utilizados)
 ; Como input: R0, R1, R2 (podem ser alterados após o seu uso nas rotinas)
@@ -143,7 +145,7 @@ repete:
     MOV R2, DEF_ASTEROIDE_N_MINERAVEL
     CALL rotina_nave_asteroides ; desenha o asteroide se ainda não estiver desenhado
   
-	  CALL	teclado			; leitura às teclas
+	CALL teclado			; leitura às teclas
 
 
     CALL converte_numero   ; retorna R9 com a tecla premida
@@ -353,33 +355,105 @@ rotina_acoes_teclado:
     PUSH R2
     PUSH R3
     PUSH R4
+    PUSH R5
+    PUSH R6
+    PUSH R7
+
 
     MOV R0, INCREMENTO_DISPLAY  ; tecla referente ao incremento do display
     MOV R1, DECREMENTO_DISPLAY  ; tecla referente ao decremento do display
     MOV R2, SONDA_CIMA          ; tecla referente ao movimento da sonda para cima
     MOV R3, ASTEROIDE_BAIXO     ; tecla referente ao movimento do asteroide para baixo
     MOV R4, DISPLAYS            ; endereço do display
+    MOV R6, 0000H               ; valor minimo do display
+    MOV R7, 03E7H                ; valor maximo do display
 
     CMP R9, R0
     JZ incrementa_display       ; procede ao incremento do valor do display
     CMP R9, R1
     JZ decrementa_display       ; procede ao decremento do valor do display
+    CMP R9, R2
+    JZ movimento_sonda_cima     ; procede ao movimento da sonda para cima
     JMP fim_rotina_acoes_teclado
 
 incrementa_display:
+    CMP R11,  R7           ; valor maximo a apresentar no display
+    JGE fim_rotina_acoes_teclado ; se o valor do display for o maximo, não incrementa
     ADD R11, 1                  ; incrementa o valor do display
-    MOV [R4], R11               ; atualiza o valor do display
-    JMP fim_rotina_acoes_teclado
-decrementa_display:
-    SUB R11, 1                  ; decrementa o valor do display
-    MOV [R4], R11               ; atualiza o valor do display
+;    CALL rotina_converte_hexdec      ; converte o valor do display para decimal
+    MOV [R4], R11             ; atualiza o valor do display
     JMP fim_rotina_acoes_teclado
 
+decrementa_display:
+    CMP R11, R6             ; valor minimo a apresentar no display
+    JLE fim_rotina_acoes_teclado ; se o valor do display for o minimo, não decrementa
+    SUB R11, 1                  ; decrementa o valor do display
+;    CALL rotina_converte_hexdec      ; converte o valor do display para decimal
+    MOV [R4], R11             ; atualiza o valor do display
+    JMP fim_rotina_acoes_teclado
+
+movimento_sonda_cima:
+
+    JMP fim_rotina_acoes_teclado
 fim_rotina_acoes_teclado:
 
+    POP R8
+    POP R7
+
+    POP R5
     POP R4
     POP R3
     POP R2
     POP R1
     POP R0
+    RET
+
+
+; **********************************************************************
+; Rotina
+; Conversão de um valor hexadecimal para decimal
+;
+; PARAMETROS: R11 - valor hexadecimal
+; RETORNO: R5 - valor decimal
+; **********************************************************************
+rotina_converte_hexdec:
+    PUSH R1
+    PUSH R2
+    PUSH R3
+    PUSH R4
+    PUSH R6
+    PUSH R7
+
+    MOV R1, 16
+    MOV R2, 1   ; Registo que vai guardar a potencia de 16
+    MOV R3, R11  ; Registo que vai guardar o valor hexadecimal
+    MOV R4, MASCARA_HEXADECIMAL    ; Registo que vai guardar a máscara para isolar o ultimo digito do valor hexadecimal
+    MOV R5, 0    ; Registo que vai guardar o o valor decimal
+    MOV R7, 000AH   ; Registo que vai guardar o valor 10
+ciclo_converte_hexdec:
+    CMP R3, 0    ; Verifica se o valor hexadecimal é 0
+    JZ fim_rotina_converte_hexdec ; Se for 0, termina a rotina
+    MOV R6, R3    ; Guarda o valor hexadecimal no registo R6
+    AND R6, R4    ; Faz a máscara do valor hexadecimal, isola o ultimo digito
+
+    CMP R6, R7    ; Verifica se o valor hexadecimal é maior que 9
+    JLE conversor_hexdec
+    SUB R6, 7     ; Se for maior que 9, soma 7 para obter o valor correspondente em decimal
+
+conversor_hexdec:
+    MUL R6, R2      ; Multiplica o valor hexadecimal pela potência de 16
+    ADD R5, R6
+    SHl R3, 4       ; Divide o valor hexadecimal por 16
+    
+    MUL R2, R1      ; Multiplica o valor 16 pela potência de 16
+    JMP ciclo_converte_hexdec   ; Repete o ciclo até o valor hexadecimal ser 0
+
+fim_rotina_converte_hexdec:
+    
+    POP R7
+    POP R6
+    POP R4
+    POP R3
+    POP R2
+    POP R1
     RET
