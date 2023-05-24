@@ -54,13 +54,28 @@ LARANJA_PIXEL       EQU 0FFA0H ; cor do pixel: laranja em ARGB (opaco e vermelho
 VERDE_PIXEL         EQU 0F5F2H ; cor do pixel: verde em ARGB (opaco e verde no máximo, vermelho e azul a 0)
 AZUL_CIANO_PIXEL      EQU 0F0FFH
 
+; * Constantes - teclado/display
 VALOR_INICIAL_DISPLAY EQU 0064H   ; valor inicial do display (100 EM DECIMAL)
 INCREMENTO_DISPLAY EQU 000BH    ; tecla que incrementa o valor do display
 DECREMENTO_DISPLAY EQU 000FH    ; tecla que decremento o valor do display
 SONDA_CIMA         EQU 000AH    ; tecla que move a sonda para cima
 ASTEROIDE_BAIXO    EQU 0002H   ; tecla que move o asteroide para baixo
+JOGO_COMECA        EQU 000CH    ; tecla que começa o jogo
+JOGO_PAUSA        EQU 000DH    ; tecla que pausa o jogo
 
-MASCARA_HEXADECIMAL EQU 000FH	; mascara para isolar o ultimo digito hexadecimal
+MIN_VALOR_DISPLAY  EQU 0000H    ; valor minimo do display
+MAX_VALOR_DISPLAY  EQU 03E7H    ; valor maximo do display
+
+; * Constantes - MEDIA CENTER
+SOM_DISPARO        EQU 2
+SOM_INICIO         EQU 1
+
+IMAGEM_INICIO      EQU 0
+IMAGEM_JOGO        EQU 1
+IMAGEM_PAUSE       EQU 2
+
+
+
 
 ; *********************************************************************************
 ; * Registos usados globalmente: (Vamos escrevendo para termos noção dos registos já utilizados)
@@ -129,7 +144,7 @@ inicio:
                               
     MOV  [APAGA_AVISO], R1	; apaga o aviso de nenhum cenário selecionado (o valor de R1 não é relevante)
     MOV  [APAGA_ECRÃ], R1	; apaga todos os pixels já desenhados (o valor de R1 não é relevante)
-    MOV	R1, 0			; cenário de fundo número 0
+    MOV	R1, IMAGEM_INICIO			; cenário de fundo número 0
     MOV  [SELECIONA_CENARIO_FUNDO], R1	; seleciona o cenário de fundo
     
     MOV R11, VALOR_INICIAL_DISPLAY            
@@ -137,9 +152,7 @@ inicio:
     
     MOV R10, 0 ; Inicializa o registo 10 que vai servir para controlo do desenho do asteroide 
     MOV R2, DEF_NAVE ; Inicializa o registo 2 que vai indicar que boneco desenhar
-    
-
-
+    MOV R8, 0 ; Controla se o estado em que está o jogo (0 - jogo terminado, 1 - jogo a decorrer, 2 - jogo parado)
    
     CALL rotina_nave_asteroides  
 
@@ -153,16 +166,11 @@ espera_tecla:
     CMP R1, 0
     JZ espera_tecla
 
-
     CALL converte_numero   ; retorna R9 com a tecla premida
 	
     CALL rotina_acoes_teclado   ;executa as acoes de acordo com a tecla premida
 
-    
-
 	JMP repete
-
-
 
 
 ; **********************************************************************
@@ -356,7 +364,8 @@ preenche_pixel:
 ; Rotina
 ; Executa a acao correspondente a tecla premida
 ;
-;PARAMETROS: R9 - tecla clicada
+;PARAMETROS: R8 - estado do jogo
+;            R9 - tecla clicada
 ;            R11 - valor apresentado no display (hexadecimal)
 ; **********************************************************************
 
@@ -376,8 +385,18 @@ rotina_acoes_teclado:
     MOV R2, SONDA_CIMA          ; tecla referente ao movimento da sonda para cima
     MOV R3, ASTEROIDE_BAIXO     ; tecla referente ao movimento do asteroide para baixo
     MOV R4, DISPLAYS            ; endereço do display
-    MOV R6, 0000H               ; valor minimo do display
-    MOV R7, 03E7H                ; valor maximo do display
+    MOV R6, JOGO_COMECA   ; valor minimo do display
+    MOV R7, JOGO_PAUSA   ; valor maximo do display
+
+    CMP R9, R6
+    JZ jogo_comeca       ; procede ao inicio do jogo
+    CMP R8, 0
+    JZ fim_rotina_acoes_teclado ; se o jogo não começou, não faz nada
+
+    CMP R9, R7
+    JZ jogo_pausa       ; procede à pausa do jogo
+    CMP R8, 2
+    JZ fim_rotina_acoes_teclado ; se o jogo está em pausa, não faz nada
 
     CMP R9, R0
     JZ incrementa_display       ; procede ao incremento do valor do display
@@ -388,6 +407,7 @@ rotina_acoes_teclado:
     JMP fim_rotina_acoes_teclado
 
 incrementa_display:
+    MOV R7, MAX_VALOR_DISPLAY   ; valor maximo do display
     CMP R11,  R7           ; valor maximo a apresentar no display
     JGE fim_rotina_acoes_teclado ; se o valor do display for o maximo, não incrementa
     ADD R11, 1                  ; incrementa o valor do display
@@ -396,7 +416,8 @@ incrementa_display:
     JMP fim_rotina_acoes_teclado
 
 decrementa_display:
-    CMP R11, R6             ; valor minimo a apresentar no display
+    MOV R7, MIN_VALOR_DISPLAY   ; valor minimo do display
+    CMP R11, R7             ; valor minimo a apresentar no display
     JLE fim_rotina_acoes_teclado ; se o valor do display for o minimo, não decrementa
     SUB R11, 1                  ; decrementa o valor do display
     ;CALL rotina_converte_hexdec      ; converte o valor do display para decimal
@@ -404,13 +425,26 @@ decrementa_display:
     JMP fim_rotina_acoes_teclado
 
 movimento_sonda_cima:
-
+    MOV R7, SOM_DISPARO
+    MOV [TOCA_SOM], R7
     JMP fim_rotina_acoes_teclado
+    
+
+jogo_comeca:
+
+    CALL rotina_jogo_comeca
+    JMP fim_rotina_acoes_teclado
+
+jogo_pausa:
+
+    CALL rotina_jogo_pausado
+    JMP fim_rotina_acoes_teclado
+
 fim_rotina_acoes_teclado:
 
-    POP R8
+    
     POP R7
-
+    POP R6
     POP R5
     POP R4
     POP R3
@@ -419,10 +453,63 @@ fim_rotina_acoes_teclado:
     POP R0
     RET
 
+;**********************************************************************
+; Rotina
+; Inicia o jogo
+;PARAMETROS: R8 - estado do jogo
+;            R11 - valor apresentado no display (hexadecimal)
+;**********************************************************************
+
+rotina_jogo_comeca:
+    CMP R8, 0
+    JGT fim_jogo_comeca
+
+    MOV R8, IMAGEM_JOGO
+    MOV [SELECIONA_CENARIO_FUNDO], R8     ;Alterar a imagem de fundo do mediacenter (asteroides)
+
+    MOV R11, VALOR_INICIAL_DISPLAY            
+    MOV [DISPLAYS], R11     ; inicializa o display com o valor inicial 
+    MOV R8, SOM_INICIO
+    MOV [TOCA_SOM], R8      ; toca o som do inicio jogo (som spaceship)
+    MOV R8, 1
+fim_jogo_comeca: 
+
+    RET
+    ;Desenhar a nave e o asteroide
+    ;Colocar o display com o valor inicial
+
+;**********************************************************************
+; Rotina
+; Pausa o jogo
+; PARAMETROS: R8 - estado do jogo
+;**********************************************************************
+
+rotina_jogo_pausado:
+
+    CMP R8, 1
+    JZ pause
+    CMP R8, 2
+    JZ unpause
+
+pause:
+    MOV R8, IMAGEM_PAUSE  
+    MOV [SELECIONA_CENARIO_FUNDO], R8
+    ;Alterar a imagem de fundo do mediacenter, colocar um overlay por cima do jogo inicial
+    JMP fim_rotina_jogo_pausado
+
+unpause:
+    MOV R8, IMAGEM_JOGO
+    MOV [SELECIONA_CENARIO_FUNDO], R8
+    ;Alterar a imagem de fundo do mediacenter, remover o overlay
+
+fim_rotina_jogo_pausado:
+    RET
+
+
 
 ; **********************************************************************
 ; Rotina
-; Conversão de um valor hexadecimal para decimal
+; Conversão de um valor hexadecimal para decimal - NOT WORKING
 ;
 ; PARAMETROS: R11 - valor hexadecimal
 ; RETORNO: R5 - valor decimal
@@ -439,7 +526,7 @@ fim_rotina_acoes_teclado:
 ;    MOV R1, 16
 ;    MOV R2, 1   ; Registo que vai guardar a potencia de 16
 ;    MOV R3, R11  ; Registo que vai guardar o valor hexadecimal
-;    MOV R4, MASCARA_HEXADECIMAL    ; Registo que vai guardar a máscara para isolar o ultimo digito do valor hexadecimal
+;    MOV R4, MASCARA    ; Registo que vai guardar a máscara para isolar o ultimo digito do valor hexadecimal
 ;    MOV R5, 0    ; Registo que vai guardar o o valor decimal
 ;    MOV R7, 000AH   ; Registo que vai guardar o valor 10
 ;    MOV R8, 0H
