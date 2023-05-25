@@ -1510,15 +1510,19 @@
     "name" : "Media Center",
     "numberOfBits" : 16,
     "moduleDelay" : 5,
+
     "positionX" : 630,
     "positionY" : 230,
+
     "simGuiVisibleInSimulation" : false,
     "columnAddressNBits" : 6,
     "lineAddressNBits" : 5,
     "windowScreenWidthPixels" : 1024,
     "windowScreenHeightixels" : 512,
     "defaultPenColor" : 65280,
+
     "image paths" : [ "WhatsApp Image 2023-05-22 at 18.43.39.jpeg", "cintura_asteroides.jpg", "pause.png", "WhatsApp Image 2023-05-22 at 18.43.40.jpeg" ],
+
     "sounds/videos settings" : [ {
       "filePathName" : "som_perdeu.mp3",
       "relative sound volume" : 1.0,
