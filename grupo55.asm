@@ -177,7 +177,12 @@ repete:
 
     MOV R2, DEF_ASTEROIDE_N_MINERAVEL   ; Define qual o boneco que vai ser desenhado no ecrã
     CALL rotina_desenha_bonecos ; desenha o asteroide se ainda não estiver desenhado
-  
+
+; Chamadas necessárias para movimentar o asteróide ou a sonda uma vez
+    CALL rotina_posicao_atual ; atualiza a posição ou dos asteroides ou da sonda
+
+    CALL rotina_movimento_e_desenhos
+
 
 espera_tecla:   
     CALL teclado			; leitura às teclas
@@ -457,10 +462,7 @@ jogo_pausa:
     CALL rotina_jogo_pausado    ;coloca/retira o jogo da pausa
 
     JMP fim_rotina_acoes_teclado
-    
-movimento_sonda_cima:
 
-    CALL rotina_movimento_e_desenhos
     
 fim_rotina_acoes_teclado:
 
@@ -496,7 +498,7 @@ rotina_jogo_comeca:
     MOV [DISPLAYS], R11     ; inicializa o display com o valor inicial 
 
     MOV R8, 1
-fim_jogo_comeca: 
+fim_jogo_comeca:
 
     RET
     ;Desenhar a nave e o asteroide
@@ -644,8 +646,6 @@ rotina_movimento_e_desenhos:
     PUSH R6
     PUSH R7
     PUSH R8
-
-    CALL rotina_posicao_atual ; atualiza a posição ou dos asteroides ou da sonda
  
     CALL rotina_apaga_boneco ; Apaga o asteroide/sonda da posição anterior
 
@@ -677,10 +677,11 @@ rotina_movimento_e_desenhos:
 ; **********************************************************************
 rotina_apaga_boneco:
 
+    PUSH R1
     PUSH R7
     PUSH R9
     PUSH R10
-    PUSH R11
+    
 
     posicao_anterior:
         MOV R9, DEF_SONDA ; guarda a tabela no registo para ser possível comparar com a tabela em R2
@@ -694,7 +695,6 @@ rotina_apaga_boneco:
             JMP acessos
 
         caso_asteroide: ; Se for asteroide, a posição anterior é na diagonal anterior (-1 em cada uma das componentes)
-            MOV R11, R1 ; Guarda o valor da próxima linha para depois servir de linha de começo do próximo boneco
             SUB R1, 1 
             SUB R7, 1
         
@@ -731,11 +731,10 @@ rotina_apaga_boneco:
 
     final_apaga_boneco:
 
-        MOV R1, R11         ; devolve o valor da próxima linha a R1 para ser usado por outras rotinas
-        POP R11
         POP R10
         POP R9
         POP R7
+        POP R1
         RET
 
 ;; **********************************************************************
@@ -782,7 +781,7 @@ rotina_posicao_atual:
         MOV  R1, LINHA_SONDA		; linha da nave
         MOV  R7, COLUNA_SONDA	  ; coluna da nave
 ;       MOV  R7, R4                   ; registo para armazenar a coluna inicial
-        
+        JMP fim_rotina
 
     incrementa_posicao:
         MOV R8, DEF_SONDA ; Verifica se é sonda de novo
