@@ -408,8 +408,10 @@ rotina_acoes_teclado:
 
     CMP R9, R0
     JZ incrementa_display       ; procede ao incremento do valor do display
+    
     CMP R9, R1
     JZ decrementa_display       ; procede ao decremento do valor do display
+
     CMP R9, R2
     JZ movimento_sonda_cima     ; procede ao movimento da sonda para cima
 
@@ -440,11 +442,16 @@ decrementa_display:
 movimento_sonda_cima:
     MOV R7, SOM_DISPARO
     MOV [TOCA_SOM], R7          ; toca o som do disparo da sonda
+
+    CALL rotina_movimento_e_desenhos
     JMP fim_rotina_acoes_teclado
 
 movimento_asteroide_baixo:
     MOV R7, SOM_ASTEROIDE
     MOV [TOCA_SOM], R7          ; toca o som do movimento do asteroide
+
+
+    CALL rotina_movimento_e_desenhos
     JMP fim_rotina_acoes_teclado   
 
 jogo_comeca:
@@ -457,11 +464,8 @@ jogo_pausa:
     CALL rotina_jogo_pausado    ;coloca/retira o jogo da pausa
 
     JMP fim_rotina_acoes_teclado
-    
-movimento_sonda_cima:
 
-    CALL rotina_movimento_e_desenhos
-    
+
 fim_rotina_acoes_teclado:
 
 
