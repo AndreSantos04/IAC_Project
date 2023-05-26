@@ -533,12 +533,14 @@ rotina_acoes_teclado:
     CMP R9, R0
     JZ incrementa_display       ; procede ao incremento do valor do display
     
+
     MOV R0, DECREMENTO_DISPLAY  ; tecla referente ao decremento do display
     CMP R9, R0
     JZ decrementa_display       ; procede ao decremento do valor do display
 
     MOV R0, SONDA_CIMA          ; tecla referente ao movimento da sonda para cima
     CMP R9, R0
+
     JZ movimento_sonda_cima     ; procede ao movimento da sonda para cima
 
     MOV R0, ASTEROIDE_BAIXO     ; tecla referente ao movimento do asteroide para baixo
@@ -567,6 +569,7 @@ decrementa_display:
     JMP fim_rotina_acoes_teclado
 
 movimento_sonda_cima:
+
     MOV R0, SOM_DISPARO
     MOV [TOCA_SOM], R0              ; toca o som do disparo da sonda
     
@@ -596,6 +599,7 @@ movimento_asteroide_baixo:
 
     CALL rotina_desenha_asteroide_e_nave    ; desenha o asteroide na nova posição
     
+
     JMP fim_rotina_acoes_teclado   
 
 jogo_comeca:
@@ -609,7 +613,7 @@ jogo_pausa:
 
     JMP fim_rotina_acoes_teclado
 
-    
+
 fim_rotina_acoes_teclado:
 
 
