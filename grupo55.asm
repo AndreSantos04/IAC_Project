@@ -43,8 +43,6 @@ LINHA_ASTEROIDE         EQU  0      ; 1ª linha do asteroide
 COLUNA_ASTEROIDE	    EQU  0      ; 1ª coluna do asteroide 
 LINHA_NAVE              EQU  27     ; 1ª linha da nave 
 COLUNA_NAVE             EQU  25     ; 1ª coluna da nave 
-LINHA_PAINEL_CONTROLO   EQU 29     ; 1ª linha do painel de controlo da nave 
-COLUNA_PAINEL_CONTROLO  EQU 29      ; 1ª coluna do painel de controlo da nave 
 LINHA_SONDA             EQU 26      ; linha da sonda 
 COLUNA_SONDA            EQU 32      ; coluna da sonda 
 MIN_COLUNA		        EQU  0		; número da coluna mais à esquerda que o objeto pode ocupar
@@ -149,7 +147,7 @@ DEF_EXPLOSAO_ASTEROIDE:					; tabela que define o asteroide quando explode
     WORD		AZUL_CIANO , 0, AZUL_CIANO , 0, AZUL_CIANO 
 	WORD		0 , AZUL_CIANO , 0 , AZUL_CIANO , 0	
 
-DEF_NAVE:   
+DEF_NAVE:                               ; tabela que define a nave
   WORD    LARGURA_NAVE
   WORD    ALTURA
   WORD    0, 0, VERMELHO, VERMELHO, VERMELHO, VERMELHO, VERMELHO, VERMELHO, VERMELHO, VERMELHO, VERMELHO, VERMELHO, VERMELHO, 0, 0
@@ -158,7 +156,7 @@ DEF_NAVE:
   WORD    VERMELHO, PRETO, PRETO, PRETO, VERDE, CINZENTO, VERMELHO, CINZENTO, LARANJA, CINZENTO, AZUL_CIANO, PRETO, PRETO, PRETO, VERMELHO
   WORD    VERMELHO, PRETO, PRETO, PRETO, PRETO, PRETO, PRETO, PRETO, PRETO, PRETO, PRETO, PRETO, PRETO, PRETO, VERMELHO
 
-DEF_SONDA:
+DEF_SONDA:                              ; tabela que define a sonda (apenas um pixel)
   WORD    ROSA
 
 ; *********************************************************************************
@@ -287,15 +285,19 @@ rot_converte_numero:
 
 
 
-; **********************************************************************
-; Rotina
-; desenha asteroide dos não mineráveis
-;
-; PARAMETROS: R2 - tipo da tabela (nave, asteroide não minerável, 
-;asteroide minerável ou explosão de asteroide)
-;
-;RETORNA: R5 e R6 no caso de se desenhar um asteroide - linha e coluna respetivamente
-; **********************************************************************
+;; ************************************************************************************
+;; Rotina
+;; desenha asteroide ou nave, dependendo do valor de R2
+;;
+;; PARÂMETROS:  R2 - tipo da tabela (nave, asteroide não minerável, asteroide 
+;;              minerável ou explosão de asteroide), a sonda é tratada noutra rotina
+;;              R5 - linha do primeiro píxel do asteroide
+;;              R6 - coluna do primeiro píxel do asteroide
+
+;;
+;; RETORNA: R5 e R6 no caso de se desenhar um asteroide - linha e coluna respetivamente
+;; ************************************************************************************
+
 rot_desenha_asteroide_e_nave: ; Deposita os valores dos registos abaixo no stack
 
     PUSH R0
@@ -306,7 +308,7 @@ rot_desenha_asteroide_e_nave: ; Deposita os valores dos registos abaixo no stack
     PUSH R7
     PUSH R8
     
-; as seis intruções seguintes servem para verificar o valor de R10 de acordo com o explicado na descrição (linha 165)  
+; as seis intruções seguintes servem para verificar o valor de R10 de acordo com o explicado na descrição 
     CMP R10, 1          
     JZ atualiza_posicao
     
@@ -377,6 +379,19 @@ rot_desenha_asteroide_e_nave: ; Deposita os valores dos registos abaixo no stack
         POP R0
         RET
 
+
+;; ************************************************************************************
+;; Rotina
+;; preenche os pixeis de uma linha, ou com a cor presente em cada pixel da tabela
+;; do objeto, se R10 for diferente de -1 ou com cor 0, ou seja, apaga os pixels
+;;
+;; PARÂMETROS:  R2 - tipo da tabela (nave, asteroide não minerável, asteroide 
+;;              minerável ou explosão de asteroide), a sonda é tratada noutra rotina
+;;              R7 - linha do objeto
+;;              R4 - coluna do objeto
+;;
+;; ************************************************************************************
+
 rot_desenha_pixels_linha:       		; desenha os pixels do asteroide/nave a partir da tabela
     
     PUSH R0
@@ -391,7 +406,8 @@ rot_desenha_pixels_linha:       		; desenha os pixels do asteroide/nave a partir
     
     preenche_pixel:
 
-        CMP R10, -1             ; verifica se é suposto apagar o desenho (ao pôr o valor dos pixels a 0)
+        CMP R10, -1             ; verifica se é suposto apagar o desenho ; verifica se é suposto apagar o desenho
+                                ; (pôr o valor dos pixels a 0 ao não mudar o R3, que está a 0)
         JZ pinta_pixels
 
         MOV	R3, [R2]			; obtém a cor do próximo pixel do asteroide/nave
@@ -406,7 +422,7 @@ rot_desenha_pixels_linha:       		; desenha os pixels do asteroide/nave a partir
 
         ADD	R2, 2			    ; endereço da cor do próximo pixel (2 porque cada cor de pixel é uma word)
         ADD R4, 1               ; próxima coluna
-        SUB R0, 1			    ; menos uma coluna para tratar
+        SUB R0, 1			    ; menos uma coluna para tratar (diminui a Largura restante)
         JNZ preenche_pixel      ; continua até percorrer toda a largura do objeto
 
     fim_desenha_pixels:
@@ -418,24 +434,25 @@ rot_desenha_pixels_linha:       		; desenha os pixels do asteroide/nave a partir
         POP R0
         RET
 
-; **********************************************************************
-
-; Rotina
-; desenha asteroide dos não mineráveis
-;
-; PARAMETROS: R2 - tipo da tabela (nave, asteroide não minerável, 
-;asteroide minerável ou explosão de asteroide)
-;
-;RETORNA: R10 - Registo para controlar se já existe asteroide e sonda ou não 
-; **********************************************************************
+;; **********************************************************************
+;; Rotina
+;; Serve para desenhar ou apagar a sonda dependendo do valor de R10
+;;
+;; PARÂMETROS: R2 - enderço inicial da tabela da sonda 
+;;             R7 - sua linha no momento
+;; 
+;; RETORNA: R10 - Registo para controlar o próximo desenho, se R10 veio a -1 (para apagar)
+;;               irá devolver R10 com 3, o que indica ao processador que a próxima chamada
+;;               desta rotina será para desenhar
+;; **********************************************************************
 rot_desenha_sonda:
     PUSH R1
     PUSH R2
     PUSH R4
 
-    ;MOV R2, DEF_SONDA ; ao chamar a rotina sabemos que será para usar a tabela da sonda, logo esta é guardada num registo
-    
-    ; as seis intruções seguintes servem para verificar se existe alguma sonda de acordo com o explicado na descrição de R10
+    ; as seis intruções seguintes servem para verificar se existe alguma sonda ou se
+    ; é para apagar,de acordo com o explicado na descrição de R10
+
     CMP R10, 3
     JZ coluna_constante
 
@@ -444,13 +461,13 @@ rot_desenha_sonda:
 
     CMP R10, -1
     JZ coluna_constante
-; Os blocos acima tratam os casos em que já existe uma sonda
+
     
 
     posicao_sonda:
 
         MOV  R7, LINHA_SONDA	    ; linha da nave
-        ADD R10, 2 ; Diz à variável de controlo que após esta já rotina haverá uma sonda desenhada
+        ADD R10, 2                  ; Diz à variável de controlo que após esta já rotina haverá uma sonda desenhada
     
     coluna_constante:
         MOV  R4, COLUNA_SONDA	    ; coluna da nave
@@ -461,25 +478,13 @@ rot_desenha_sonda:
     teste_apaga:
         CMP R10, -1                         ; verifica se esta rotina foi usada para apagar, se sim, põe o valor de R1 a 3 para poder desenhar de novo
         JNZ fim_desenho_sonda
-        MOV R10, 3                          ; Põe R10 a 3 de modo a poder desenhar o próximo asteroide
+        MOV R10, 3                          ; Põe R10 a 3 de modo a poder desenhar a próxima sonda
 
     fim_desenho_sonda:                     
     POP R4
     POP R2
     POP R1
     RET
-
-
-; **********************************************************************
-; Rotina
-; desenha asteroide dos não mineráveis
-;
-; PARAMETROS: R2 - tipo da tabela (nave, asteroide não minerável, 
-;asteroide minerável ou explosão de asteroide)
-;
-;RETORNA: R10 - Registo para controlar se já existe asteroide e sonda ou não 
-; **********************************************************************
-
 
 
 
@@ -550,12 +555,12 @@ rot_acoes_teclado:
 
     decrementa_display:
 
-        MOV R0, MIN_VALOR_DISPLAY   ; valor minimo do display
+        MOV R0, MIN_VALOR_DISPLAY       ; valor minimo do display
         CMP R11, R0             
-        JLE fim_acoes_teclado ; se o valor do display for o minimo, não decrementa
-        SUB R11, 1                  ; decrementa o valor do display
+        JLE fim_acoes_teclado           ; se o valor do display for o minimo, não decrementa
+        SUB R11, 1                      ; decrementa o valor do display
 
-        MOV [DISPLAYS], R11            ; atualiza o valor do display
+        MOV [DISPLAYS], R11             ; atualiza o valor do display
         JMP fim_acoes_teclado
 
     movimento_sonda_cima:
@@ -564,7 +569,7 @@ rot_acoes_teclado:
         MOV [TOCA_SOM], R0              ; toca o som do disparo da sonda
 
         MOV R2, DEF_SONDA               ; guarda a tabela da sonda que vai ser desenhada no ecrã
-        MOV R10, -1                     ; Diz á rotina seguinte que vai apagar o asteroide existente
+        MOV R10, -1                     ; Diz á rotina seguinte que vai apagar a sonda existente
         CALL rot_desenha_sonda
         CALL rot_atualiza_posicao    ; incrementa a posição verticalmente para cima (-1 linha pois a maior(31) é em baixo)
 
@@ -705,21 +710,23 @@ rot_jogo_pausado:
         RET
 
 
-; **********************************************************************
-; Rotina (auxiliar para outras)
-;  
-;
-; -RETORNA: R1 como a próxima linha do boneco
-;           R7 como a próxima coluna 
-;           R10 como variável de controlo para verificar se já existe asteroide
-; **********************************************************************
+;; **********************************************************************
+;; Rotina 
+;; - indica qual a próxima posição de um determinado objeto
+;;  
+;; - PARÂMETROS:    R5, R6 (linha e coluna do asteroide)
+;;                  R7 (linha da sonda)
+;; 
+;; - RETORNA: Os registos de posição atualizados (R5 e R6 ou R7 dependendo do tipo do objeto)
+;; **********************************************************************
+
 rot_atualiza_posicao:
     PUSH R0
 
     
     MOV R0, DEF_SONDA           
-    CMP R2, R0
-    JNZ proxima_posicao_asteroide
+    CMP R2, R0                          ; verifica se o objeto é uma sonda
+    JNZ proxima_posicao_asteroide       ; salta se não for sonda (será asteroide)
 
     proxima_posicao_sonda:
         SUB R7, 1                       ; decrementa a linha, ou seja sobe no ecrã verticalmente
