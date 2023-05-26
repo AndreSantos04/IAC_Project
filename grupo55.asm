@@ -48,8 +48,7 @@ ATRASO			EQU	5H		; (inicialmente a 400) atraso para limitar a velocidade de movi
 LARGURA_ASTEROIDE		EQU	5
 ALTURA			        EQU	5		; altura do asteroide e da nave
 LARGURA_NAVE            EQU 15
-LARGURA_SONDA           EQU 1
-ALTURA_SONDA            EQU 1
+
 
 ; * Constantes - cores
 VERMELHO	  EQU 0FF00H ; cor do pixel: vermelho em ARGB (opaco e vermelho no máximo, verde e azul a 0)
@@ -88,8 +87,14 @@ IMAGEM_PAUSE       EQU 2
 ; *********************************************************************************
 ; * Registos usados globalmente: (Vamos escrevendo para termos noção dos registos já utilizados)
 ; Como input: R0, R1, R2 (podem ser alterados após o seu uso nas rotinas)
-; Como output: R8, R9, R10, R11 (não convém serem alterados)
-
+; Como output:(não convém serem alterados)
+; - R5,R6,R7 ->posição do asteroide(R5 e R6) e posição da sonda(R7)
+; - R8, R9, R11 
+; - R10 : Descrição do papel de registo de controlo de R10
+;         Inicialmente a 0, o registo 10 vai servir para controlo do desenho do asteroide e da sonda, tal que,
+;         Se R10 estiver a -1 e alguma das rotinas de desenho for chamada irá apagar o desenho (reescrever os pixels a transparente),
+;         se estiver a 0 não está nenhum asteroide ou sonda desenhados, se estiver a 1 está o asteroide apenas,
+;         a 2 a sonda apenas e a 3 a sonda e o asteroide.
 ; *********************************************************************************
 
 ; *********************************************************************************
@@ -136,13 +141,11 @@ DEF_NAVE:
   WORD    ALTURA
   WORD    0, 0, VERMELHO, VERMELHO, VERMELHO, VERMELHO, VERMELHO, VERMELHO, VERMELHO, VERMELHO, VERMELHO, VERMELHO, VERMELHO, 0, 0
   WORD    0, VERMELHO, PRETO, PRETO, PRETO, PRETO, PRETO, PRETO, PRETO, PRETO, PRETO, PRETO, PRETO, VERMELHO, 0
-  WORD    VERMELHO, PRETO, PRETO, PRETO, CINZENTO, CINZENTO, CINZENTO, CINZENTO, CINZENTO, CINZENTO, CINZENTO, PRETO, PRETO, PRETO, VERMELHO
-  WORD    VERMELHO, PRETO, PRETO, PRETO, CINZENTO, CINZENTO, CINZENTO, CINZENTO, CINZENTO, CINZENTO, CINZENTO, PRETO, PRETO, PRETO, VERMELHO
+  WORD    VERMELHO, PRETO, PRETO, PRETO, CINZENTO, LARANJA, AZUL_CIANO, VERMELHO, AZUL_CIANO, VERDE, CINZENTO, PRETO, PRETO, PRETO, VERMELHO
+  WORD    VERMELHO, PRETO, PRETO, PRETO, VERDE, CINZENTO, VERMELHO, CINZENTO, LARANJA, CINZENTO, AZUL_CIANO, PRETO, PRETO, PRETO, VERMELHO
   WORD    VERMELHO, PRETO, PRETO, PRETO, PRETO, PRETO, PRETO, PRETO, PRETO, PRETO, PRETO, PRETO, PRETO, PRETO, VERMELHO
 
 DEF_SONDA:
-  WORD    LARGURA_SONDA
-  WORD    ALTURA_SONDA
   WORD    ROSA
 
 ; *********************************************************************************
@@ -163,21 +166,35 @@ inicio:
     MOV R11, VALOR_INICIAL_DISPLAY            
     MOV [DISPLAYS], R11     ; inicializa o display com o valor inicial
     
-    MOV R10, 0 ; Inicializa o registo 10 que vai servir para controlo do desenho do asteroide 
-    MOV R2, DEF_NAVE ; Inicializa o registo 2 que vai indicar que boneco desenhar
+    
 
     MOV R8, 0 ; Controla se o estado em que está o jogo (0 - jogo terminado, 1 - jogo a decorrer, 2 - jogo parado)
-   
-
-    
-    CALL rotina_desenha_bonecos  
 
 
 repete: 
+;
+;    MOV R2, DEF_ASTEROIDE_N_MINERAVEL   ; Define qual o boneco que vai ser desenhado no ecrã
+;    CALL rotina_desenha_asteroide_e_nave ; desenha o asteroide se ainda não estiver desenhado
+;    
+;    CALL rotina_desenha_sonda
+;    MOV R10, -1   ; Define qual o boneco que vai ser desenhado no ecrã
+;    CALL rotina_desenha_asteroide_e_nave
+;    CALL rotina_atualiza_posicao
+;    CALL rotina_desenha_asteroide_e_nave
+;    MOV R10, -1
+;    CALL rotina_desenha_sonda
+;    
+;    CALL rotina_atualiza_posicao
+;    CALL rotina_desenha_sonda
+;    MOV R10, -1   ; Define qual o boneco que vai ser desenhado no ecrã
+;    CALL rotina_desenha_asteroide_e_nave
+;    CALL rotina_atualiza_posicao
+;    CALL rotina_desenha_asteroide_e_nave
+;   
+;; Chamadas necessárias para movimentar o asteróide ou a sonda uma vez
+;  CALL rotina_atualiza_posicao ; atualiza a posição ou dos asteroides ou da sonda
+;   CALL rotina_movimento_e_desenhos
 
-    MOV R2, DEF_ASTEROIDE_N_MINERAVEL   ; Define qual o boneco que vai ser desenhado no ecrã
-    CALL rotina_desenha_bonecos ; desenha o asteroide se ainda não estiver desenhado
-  
 
 espera_tecla:   
     CALL teclado			; leitura às teclas
@@ -290,79 +307,194 @@ final_converte:
 ; PARAMETROS: R2 - tipo da tabela (nave, asteroide não minerável, 
 ;asteroide minerável ou explosão de asteroide)
 ;
-;RETORNA: R10 - Registo para controlar se já existe asteroide ou não 
+;RETORNA: R5 e R6 no caso de se desenhar um asteroide - linha e coluna respetivamente
 ; **********************************************************************
-rotina_desenha_bonecos: ; Deposita os valores dos registos abaixo no stack
+rotina_desenha_asteroide_e_nave: ; Deposita os valores dos registos abaixo no stack
 
+    PUSH R0
     PUSH R1 
+    PUSH R2
     PUSH R3
-    PUSH R4 
-    PUSH R5
-    PUSH R6
+    PUSH R4
     PUSH R7
+    PUSH R8
     
-    CMP R10, 1
-    JZ desenha_bonecos
-    CALL rotina_posicao_atual ; neste caso (por ser a primeira chamada) irá criar a posição do boneco a desenhar
+; as seis intruções seguintes servem para verificar o valor de R10 de acordo com o explicado na descrição (linha 165)
+    
+    CMP R10, 1          
+    JZ atualiza_posicao
+    
+    CMP R10, 3
+    JZ atualiza_posicao
+    
+    CMP R10, -1
+    JZ atualiza_posicao
+; Os blocos acima tratam os casos em que já existe um asteroide
 
+    MOV R8, DEF_NAVE                    ; guarda o valor da memória na primeira posição da tabela que define a nave 
+    CMP R2, R8                          ; verifica se foi pedido para desenhar uma nave
+    JNZ posicao_inicial_asteroide       ; se não foi pedida a nave então foi um asteroide
 
-    desenha_bonecos:       		; desenha o asteroide/nave/sonda(bonecos) a partir da tabela
+    
+    posicao_inicial_nave:
+        MOV  R7, LINHA_NAVE			    ; linha da nave
+        MOV  R4, COLUNA_NAVE	        ; coluna da nave
+        
 
-        MOV	R5, [R2]			; obtém a largura do boneco
+        JMP desenha_asteroide_e_nave    
+    
+    posicao_inicial_asteroide:
+        
+        MOV R5, LINHA_ASTEROIDE		; linha do asteroide
+        MOV R6, COLUNA_ASTEROIDE       ; coluna do asteroide
+        ADD R10, 1                      ; Diz ao registo de controlo que já existe 1 asteroide
+        
+    atualiza_posicao:
+        MOV R7, R5                      ; guarda o valor global da linha do asteroide noutro registo para poder ser manipulado 
+        MOV R4, R6                      ; guarda o valor global da coluna do asteroide noutro registo para poder ser manipulado 
+    
+    desenha_asteroide_e_nave:   ; desenha o asteroide/nave/sonda(bonecos) a partir da tabela
+
+        MOV	R0, [R2]			; obtém a largura do boneco
         ADD R2, 2               ; endereço da altura do boneco
-        MOV R6, [R2]            ; obtém a altura
-        ADD	R2, 2			; endereço da cor do 1º pixel (2 porque a largura é uma word)
+        MOV R1, [R2]            ; obtém a altura
+        ADD	R2, 2			    ; endereço da cor do 1º pixel (2 porque a largura é uma word)
 
+        MOV R8, R4              ; guarda o primeiro valor da coluna para depois
 
 
     desenha_todos_pixels:
-        CMP R6, 0           ;verifica se a altura é 0, se sim termina
-        JZ final_desenha_bonecos
+        CMP R1, 0                               ;verifica se a altura é 0, se sim termina
+        JZ teste_apagar
 
-        MOV R4, R7           ;reinicia a coluna para o seu valor inicial
-        CALL desenha_pixels_coluna           ; se a altura não for 0 vai desenhar os pixels da primeira linha livre
-        ADD R1, 1           ; próxima linha
+        MOV R4, R8                              ;reinicia a coluna para o seu valor inicial
+        CALL rotina_desenha_pixels_linha        ; se a altura não for 0 vai desenhar os pixels da primeira linha livre
         
-        SUB R6, 1           ; menos uma linha para tratar
+        ADD R7, 1           ; próxima linha
+        SUB R1, 1           ; menos uma linha para tratar
 
         JMP desenha_todos_pixels        ; continua até percorrer toda a tabela 
-    
 
+    teste_apagar:                       
+        CMP R10, -1                         ; se esta rotina foi usada para apagar (R10 = -1) 
+        JNZ final_desenha_asteroide_e_nave
+        MOV R10, 3                          ; Põe R10 a 3 de modo a poder desenhar o próximo asteroide
 
-    final_desenha_bonecos: ; volta a atribuir os valores acumulados no stack aos devidos registos
+    final_desenha_asteroide_e_nave: ; volta a atribuir os valores acumulados no stack aos devidos registos
         
+        POP R8
         POP R7
-        POP R6
-        POP R5
         POP R4
         POP R3
+        POP R2
         POP R1
+        POP R0
         RET
 
-desenha_pixels_coluna:       		; desenha os pixels do asteroide/nave a partir da tabela
+rotina_desenha_pixels_linha:       		; desenha os pixels do asteroide/nave a partir da tabela
+    PUSH R0
     PUSH R1
     PUSH R3
     PUSH R4
-    PUSH R5
+    PUSH R10
 
+    MOV R3, 0               ; inicializa o R3 (futura cor dos pixels) a 0
 
-preenche_pixel:
-    MOV	R3, [R2]			; obtém a cor do próximo pixel do asteroide/nave
-    MOV  [DEFINE_LINHA], R1	; seleciona a linha
-    MOV  [DEFINE_COLUNA], R4	; seleciona a coluna
-    MOV  [DEFINE_PIXEL], R3	; altera a cor do pixel na linha e coluna selecionadas
-    ADD	R2, 2			; endereço da cor do próximo pixel (2 porque cada cor de pixel é uma word)
-    ADD  R4, 1               ; próxima coluna
-    SUB  R5, 1			; menos uma coluna para tratar
-    JNZ  preenche_pixel      ; continua até percorrer toda a largura do objeto
+    MOV R1, DEF_SONDA       ; guarda o valor incial da tabela da sonda para se poder comparar com o do input(R2)
+    
+    preenche_pixel:
 
-    POP R5
+        CMP R10, -1             ; verifica se é suposto apagar o desenho (ao pôr o valor dos pixels a 0)
+        JZ pinta_pixels
+
+        MOV	R3, [R2]			; obtém a cor do próximo pixel do asteroide/nave
+
+        pinta_pixels:
+        MOV  [DEFINE_LINHA], R7	; seleciona a linha
+        MOV  [DEFINE_COLUNA], R4	; seleciona a coluna
+        MOV  [DEFINE_PIXEL], R3	; altera a cor do pixel na linha e coluna selecionadas
+        
+        CMP R2, R1      ; Se for para desenhar uma sonda, apenas preenche o único pixel que tem e sai do loop
+        JZ final_desenha_pixels
+
+        ADD	R2, 2			    ; endereço da cor do próximo pixel (2 porque cada cor de pixel é uma word)
+        ADD R4, 1               ; próxima coluna
+        SUB R0, 1			    ; menos uma coluna para tratar
+        JNZ preenche_pixel      ; continua até percorrer toda a largura do objeto
+
+        final_desenha_pixels:
+        
+        POP R10
+        POP R4
+        POP R3
+        POP R1
+        POP R0
+        RET
+
+; **********************************************************************
+; **********************************************************************
+; Rotina
+; desenha asteroide dos não mineráveis
+;
+; PARAMETROS: R2 - tipo da tabela (nave, asteroide não minerável, 
+;asteroide minerável ou explosão de asteroide)
+;
+;RETORNA: R10 - Registo para controlar se já existe asteroide e sonda ou não 
+; **********************************************************************
+rotina_desenha_sonda:
+    PUSH R1
+    PUSH R2
+    PUSH R4
+
+    ;MOV R2, DEF_SONDA ; ao chamar a rotina sabemos que será para usar a tabela da sonda, logo esta é guardada num registo
+    
+    ; as seis intruções seguintes servem para verificar se existe alguma sonda de acordo com o explicado na descrição de R10
+    CMP R10, 3
+    JZ coluna_constante
+
+    CMP R10, 2
+    JZ coluna_constante
+
+    CMP R10, -1
+    JZ coluna_constante
+; Os blocos acima tratam os casos em que já existe uma sonda
+    
+
+    posicao_sonda:
+
+        MOV  R7, LINHA_SONDA	    ; linha da nave
+        ADD R10, 2 ; Diz à variável de controlo que após esta já rotina haverá uma sonda desenhada
+    
+    coluna_constante:
+        MOV  R4, COLUNA_SONDA	    ; coluna da nave
+         
+    desenha_pixels_sonda:
+        CALL rotina_desenha_pixels_linha ; pinta a sonda de rosa, como definido na sua tabela
+    
+    teste_apaga:
+        CMP R10, -1                         ; verifica se esta rotina foi usada para apagar, se sim, põe o valor de R1 a 3 para poder desenhar de novo
+        JNZ final_desenho_sonda
+        MOV R10, 3                          ; Põe R10 a 3 de modo a poder desenhar o próximo asteroide
+
+    final_desenho_sonda:                     
     POP R4
-    POP R3
+    POP R2
     POP R1
     RET
 
+
 ; **********************************************************************
+; Rotina
+; desenha asteroide dos não mineráveis
+;
+; PARAMETROS: R2 - tipo da tabela (nave, asteroide não minerável, 
+;asteroide minerável ou explosão de asteroide)
+;
+;RETORNA: R10 - Registo para controlar se já existe asteroide e sonda ou não 
+; **********************************************************************
+
+
+
 
 
 
@@ -381,77 +513,93 @@ rotina_acoes_teclado:
     PUSH R2
     PUSH R3
     PUSH R4
-    PUSH R5
-    PUSH R6
-    PUSH R7
 
 
-    MOV R0, INCREMENTO_DISPLAY  ; tecla referente ao incremento do display
-    MOV R1, DECREMENTO_DISPLAY  ; tecla referente ao decremento do display
-    MOV R2, SONDA_CIMA          ; tecla referente ao movimento da sonda para cima
-    MOV R3, ASTEROIDE_BAIXO     ; tecla referente ao movimento do asteroide para baixo
-    MOV R4, DISPLAYS            ; endereço do display
 
-    MOV R6, JOGO_COMECA   ; valor minimo do display
-    MOV R7, JOGO_PAUSA   ; valor maximo do display
-
-    CMP R9, R6
+    MOV R0, JOGO_COMECA   ; valor minimo do display
+    CMP R9, R0
     JZ jogo_comeca       ; procede ao inicio do jogo
     CMP R8, 0
     JZ fim_rotina_acoes_teclado ; se o jogo não começou, não faz nada
 
-    CMP R9, R7
+
+    MOV R0, JOGO_PAUSA   ; valor maximo do display
+    CMP R9, R0
     JZ jogo_pausa       ; procede à pausa do jogo
     CMP R8, 2
     JZ fim_rotina_acoes_teclado ; se o jogo está em pausa, não faz nada
 
-
+    MOV R0, INCREMENTO_DISPLAY  ; tecla referente ao incremento do display
     CMP R9, R0
     JZ incrementa_display       ; procede ao incremento do valor do display
     
-    CMP R9, R1
+
+    MOV R0, DECREMENTO_DISPLAY  ; tecla referente ao decremento do display
+    CMP R9, R0
     JZ decrementa_display       ; procede ao decremento do valor do display
 
-    CMP R9, R2
+    MOV R0, SONDA_CIMA          ; tecla referente ao movimento da sonda para cima
+    CMP R9, R0
+
     JZ movimento_sonda_cima     ; procede ao movimento da sonda para cima
 
-    CMP R9, R3
+    MOV R0, ASTEROIDE_BAIXO     ; tecla referente ao movimento do asteroide para baixo
+    CMP R9, R0
     JZ movimento_asteroide_baixo ; procede ao movimento do asteroide para baixo na diagonal
     JMP fim_rotina_acoes_teclado
 
 incrementa_display:
-    MOV R7, MAX_VALOR_DISPLAY   ; valor maximo do display
-    CMP R11,  R7           ; valor maximo a apresentar no display
+    MOV R0, MAX_VALOR_DISPLAY   ; valor maximo do display
+    CMP R11,  R0           ; valor maximo a apresentar no display
     JGE fim_rotina_acoes_teclado ; se o valor do display for o maximo, não incrementa
     ADD R11, 1                  ; incrementa o valor do display
     ;CALL rotina_converte_hexdec      ; converte o valor do display para decimal
 
-    MOV [R4], R11             ; atualiza o valor do display
+    MOV [DISPLAYS], R11             ; atualiza o valor do display
     JMP fim_rotina_acoes_teclado
 
 decrementa_display:
 
-    MOV R7, MIN_VALOR_DISPLAY   ; valor minimo do display
-    CMP R11, R7             ; valor minimo a apresentar no display
+    MOV R0, MIN_VALOR_DISPLAY   ; valor minimo do display
+    CMP R11, R0             ; valor minimo a apresentar no display
     JLE fim_rotina_acoes_teclado ; se o valor do display for o minimo, não decrementa
     SUB R11, 1                  ; decrementa o valor do display
     ;CALL rotina_converte_hexdec      ; converte o valor do display para decimal
-    MOV [R4], R11            ; atualiza o valor do display
+    MOV [DISPLAYS], R11            ; atualiza o valor do display
     JMP fim_rotina_acoes_teclado
 
 movimento_sonda_cima:
-    MOV R7, SOM_DISPARO
-    MOV [TOCA_SOM], R7          ; toca o som do disparo da sonda
 
-    CALL rotina_movimento_e_desenhos
+    MOV R0, SOM_DISPARO
+    MOV [TOCA_SOM], R0              ; toca o som do disparo da sonda
+    
+    MOV R2, DEF_SONDA               ; guarda a tabela da sonda que vai ser desenhada no ecrã
+    MOV R10, -1                     ; Diz á rotina seguinte que vai apagar o asteroide existente
+    CALL rotina_desenha_sonda
+    CALL rotina_atualiza_posicao    ; incrementa a posição verticalmente para cima (-1 linha pois a maior(31) é em baixo)
+    
+    CALL rotina_desenha_sonda
+
     JMP fim_rotina_acoes_teclado
 
 movimento_asteroide_baixo:
-    MOV R7, SOM_ASTEROIDE
-    MOV [TOCA_SOM], R7          ; toca o som do movimento do asteroide
+    MOV R0, SOM_ASTEROIDE
+    MOV [TOCA_SOM], R0          ; toca o som do movimento do asteroide
 
+;    MOV R2, DEF_ASTEROIDE_N_MINERAVEL
+;    MOV R10, -1   ; Define qual o boneco que vai ser desenhado no ecrã
+;    CALL rotina_desenha_asteroide_e_nave
+;    CALL rotina_atualiza_posicao
+;    CALL rotina_desenha_asteroide_e_nave
 
-    CALL rotina_movimento_e_desenhos
+    MOV R2, DEF_ASTEROIDE_N_MINERAVEL       ; guarda a tabela do asteroide que vai ser desenhado no ecrã
+    MOV R10, -1                             ; Diz á rotina seguinte que vai apagar o asteroide existente
+    CALL rotina_desenha_asteroide_e_nave
+    CALL rotina_atualiza_posicao            ; incrementa a posição diagonalmente (+1 coluna +1 linha)
+
+    CALL rotina_desenha_asteroide_e_nave    ; desenha o asteroide na nova posição
+    
+
     JMP fim_rotina_acoes_teclado   
 
 jogo_comeca:
@@ -470,10 +618,7 @@ fim_rotina_acoes_teclado:
 
 
     
-    POP R7
-    POP R6
 
-    POP R5
     POP R4
     POP R3
     POP R2
@@ -490,6 +635,10 @@ fim_rotina_acoes_teclado:
 ;**********************************************************************
 
 rotina_jogo_comeca:
+
+    PUSH R0
+    PUSH R1
+
     CMP R8, 0
     JGT fim_jogo_comeca
 
@@ -500,8 +649,22 @@ rotina_jogo_comeca:
     MOV [DISPLAYS], R11     ; inicializa o display com o valor inicial 
 
     MOV R8, 1
-fim_jogo_comeca: 
 
+    MOV R10, 0
+
+    MOV R2, DEF_NAVE                     ; Inicializa o registo 2 que vai indicar que boneco desenhar
+    CALL rotina_desenha_asteroide_e_nave ; desenha a nave
+
+    MOV R2, DEF_ASTEROIDE_N_MINERAVEL    ; guarda qual a próxima tabela a ser desenhada 
+    CALL rotina_desenha_asteroide_e_nave ; desenha o asteroide se ainda não estiver desenhado
+
+    MOV R2, DEF_SONDA         ; guarda a próxima tabela a ser desenhada         
+    CALL rotina_desenha_sonda ; desenha a sonda
+
+fim_jogo_comeca:
+
+    POP R1
+    POP R0
     RET
     ;Desenhar a nave e o asteroide
     ;Colocar o display com o valor inicial
@@ -638,36 +801,32 @@ fim_rotina_jogo_pausado:
 
 ;    RET
 
-rotina_movimento_e_desenhos:
+;rotina_movimento_e_desenhos:
 
-    PUSH R0
-    PUSH R1
-    PUSH R3
-    PUSH R4
-    PUSH R5
-    PUSH R6
-    PUSH R7
-    PUSH R8
-
-    CALL rotina_posicao_atual ; atualiza a posição ou dos asteroides ou da sonda
- 
-    CALL rotina_apaga_boneco ; Apaga o asteroide/sonda da posição anterior
-
-    MOV R2, DEF_ASTEROIDE_N_MINERAVEL
-    CALL rotina_desenha_bonecos ; desenha o asteróide/sonda
-    
-
-    final_rotinha_mov_e_des: ; volta a atribuir os valores acumulados no stack aos devidos registos
-        
-    POP R8
-    POP R7
-    POP R6
-    POP R5
-    POP R4
-    POP R3
-    POP R1 
-    POP R0
-    RET
+;    PUSH R0
+;    PUSH R1
+;    PUSH R3
+;    PUSH R4
+;    PUSH R7
+;    PUSH R8
+; 
+;    CALL rotina_apaga_boneco ; Apaga o asteroide/sonda da posição anterior
+;
+;    CALL rotina_atualiza_posicao
+;
+;    MOV R2, DEF_ASTEROIDE_N_MINERAVEL
+;    CALL rotina_desenha_asteroide_e_nave ; desenha o asteróide/sonda
+;    
+;
+;    final_rotinha_mov_e_des: ; volta a atribuir os valores acumulados no stack aos devidos registos
+;        
+;    POP R8
+;    POP R7
+;    POP R4
+;    POP R3
+;    POP R1 
+;    POP R0
+;    RET
 
 ; **********************************************************************
 ; Rotina auxiliar
@@ -678,69 +837,63 @@ rotina_movimento_e_desenhos:
 ;asteroide minerável ou explosão de asteroide)
 ;
 ;
-; **********************************************************************
-rotina_apaga_boneco:
-
-    PUSH R7
-    PUSH R9
-    PUSH R10
-    PUSH R11
-
-    posicao_anterior:
-        MOV R9, DEF_SONDA ; guarda a tabela no registo para ser possível comparar com a tabela em R2
-        CMP R2, R9
-        JNZ caso_asteroide
-
-        
-
-        caso_sonda:
-            ADD R1, 1 ; Se for a sonda a posição anterior é a linha de baixo(+1) na mesma coluna
-            JMP acessos
-
-        caso_asteroide: ; Se for asteroide, a posição anterior é na diagonal anterior (-1 em cada uma das componentes)
-            MOV R11, R1 ; Guarda o valor da próxima linha para depois servir de linha de começo do próximo boneco
-            SUB R1, 1 
-            SUB R7, 1
-        
-    acessos:
-        MOV R4, R7 ; guarda a coluna inicial
-	    MOV	R5, [R2]		; obtém a largura do asteroide/sonda
-        ADD R2, 2           ; endereço da altura do asteroide/sonda
-        MOV R6, [R2]        ; obtem a altura
-        MOV R10, R5         ; guarda o valor da largura para depois
-
-    apaga_todos_pixels:     ; desenha os pixels do boneco a partir da tabela
-        CMP R6, 0
-        JZ final_apaga_boneco
-
-        MOV R7, R4          ; reinicia a coluna para o seu valor inicial
-        
-
-    loop_apaga_colunas:
-        MOV	R3, 0			; para apagar, a cor do pixel é sempre 0 (transparente)
-
-        MOV  [DEFINE_LINHA], R1	    ; seleciona a linha com o comando define_linha
-        MOV  [DEFINE_COLUNA], R7	; seleciona a coluna com o comando respetivo
-        MOV  [DEFINE_PIXEL], R3	    ; altera a cor do pixel na linha e coluna selecionadas para 0
-        
-        ADD  R7, 1                  ; próxima coluna
-        SUB  R5, 1			        ; menos uma coluna para tratar
-        JNZ  loop_apaga_colunas		    ; continua até percorrer toda a largura do objeto
-        
-        ADD R1, 1                   ; próxima linha
-        SUB R6, 1                   ; menos uma linha por fazer
-        MOV R5, R10         ; Reestabelece o valor da largura para o inicial
-
-        JMP apaga_todos_pixels
-
-    final_apaga_boneco:
-
-        MOV R1, R11         ; devolve o valor da próxima linha a R1 para ser usado por outras rotinas
-        POP R11
-        POP R10
-        POP R9
-        POP R7
-        RET
+;; **********************************************************************
+;rotina_apaga_boneco:
+;
+;    PUSH R0
+;    PUSH R1
+;    PUSH R7
+;    PUSH R8
+;    PUSH R9
+;    PUSH R10
+;    
+;    MOV R9, DEF_SONDA       ; guarda o endereço da tabela da sonda para depois comparar
+;
+;    acessos_tabela:
+;        
+;	    MOV	R0, [R2]		; obtém a largura do asteroide
+;        ADD R2, 2           ; endereço da altura do asteroide
+;        MOV R1, [R2]        ; obtem a altura
+;        MOV R10, R0         ; guarda o valor da largura para poder ser manipulado no loop_apaga_colunas
+;
+;    MOV R8, R4          ; guarda a coluna inicial
+;    apaga_todos_pixels:     ; desenha os pixels do boneco a partir da tabela
+;        CMP R1, 0
+;        JZ final_apaga_boneco
+;
+;        MOV R4, R8          ; reinicia a coluna para o seu valor inicial
+;        
+;
+;        loop_apaga_colunas:
+;
+;
+;            MOV  [DEFINE_LINHA], R7	    ; seleciona a linha com o comando define_linha
+;            MOV  [DEFINE_COLUNA], R4	; seleciona a coluna com o comando respetivo
+;            MOV  [DEFINE_PIXEL], R3	    ; altera a cor do pixel na linha e coluna selecionadas para 0
+;            MOV	R3, 0			; para apagar, a cor do pixel é sempre 0 (transparente)
+;
+;            CMP R2, R9                  ; Se for sonda termina a rotina pois tem altura e largura 1
+;            JZ final_apaga_boneco
+;
+;            ADD  R4, 1                  ; próxima coluna
+;            SUB  R0, 1			        ; menos uma coluna para tratar
+;            JNZ  loop_apaga_colunas		    ; continua até percorrer toda a largura do objeto
+;        
+;        ADD R1, 1                   ; próxima linha
+;        SUB R1, 1                   ; menos uma linha por fazer
+;        MOV R0, R10         ; Reestabelece o valor da largura para o inicial
+;
+;        JMP apaga_todos_pixels
+;    
+;    final_apaga_boneco:
+;
+;        POP R10
+;        POP R9
+;        POP R8
+;        POP R7
+;        POP R1
+;        POP R0
+;        RET
 
 ;; **********************************************************************
 ;; Rotina (auxiliar para outras)
@@ -750,58 +903,29 @@ rotina_apaga_boneco:
 ;;           R7 como a próxima coluna 
 ;;           R10 como variável de controlo para verificar se já existe asteroide
 ;; **********************************************************************
-rotina_posicao_atual:
+rotina_atualiza_posicao:
+    PUSH R0
 
-    PUSH R8
     
-    CMP R10, 1 ; No caso de já estar desenhado
-    JZ incrementa_posicao
+    MOV R0, DEF_SONDA           
+    CMP R2, R0
+    JNZ proxima_posicao_asteroide
 
-    MOV R7, DEF_NAVE ; Servirá para comparar com o input para verificar se é nave ou não
-    CMP R2, R7 ; Faz a verificação
-    JZ posicao_inicial_nave ; Salta para a etiqueta que tem os dados da nave
+        proxima_posicao_sonda:
+        SUB R7, 1                       ; decrementa a linha, ou seja sobe no ecrã verticalmente
+        JMP final_rotina
 
-    MOV R7, DEF_SONDA ; Servirá para comparar com o input para verificar se é sonda
-    CMP R2, R7 ; Faz a verificação
-    JZ posicao_sonda ; Salta para a etiqueta que tem os dados da nave
+    proxima_posicao_asteroide:          ; incrementa a linha e coluna do asteroide (desde a inicial) de modo a andar na diagonal
+        ADD R5, 1
+        ADD R6, 1
+        JMP final_rotina
 
-;; **********************************************************************
     
+    final_rotina:
+    POP R0
+    RET
 
-    posicao_inicial_asteroide:
-        MOV  R1, LINHA_ASTEROIDE			; linha do asteroide
-        MOV  R7, COLUNA_ASTEROIDE		  ; coluna do asteroide
-;       MOV  R7, R4                   ; registo para armazenar a coluna inicial
-        MOV R10, 1 ; Diz à variável de controlo que após esta rotina haverá um asteroide desenhado 
 
-        JMP fim_rotina
 
-    posicao_inicial_nave:
-        MOV  R1, LINHA_NAVE			; linha da nave
-        MOV  R7, COLUNA_NAVE	  ; coluna da nave
-;        MOV  R7, R4                   ; registo para armazenar a coluna inicial
-        JMP fim_rotina
-        
-    posicao_sonda:
-        MOV  R1, LINHA_SONDA		; linha da nave
-        MOV  R7, COLUNA_SONDA	  ; coluna da nave
-;       MOV  R7, R4                   ; registo para armazenar a coluna inicial
-        
 
-    incrementa_posicao:
-        MOV R8, DEF_SONDA ; Verifica se é sonda de novo
-        CMP R2, R8 
-        JZ sobe_sonda ; Se for sonda sobre uma linha (-1 linha)
-
-    movimento_asteroide: ; asteroide move-se na diagonal
-        ADD R1, 1 ; Se for asteroide aumenta uma linha e uma coluna para andar na diagonal
-        ADD R7, 1
-        JMP fim_rotina
-
-    sobe_sonda:
-        SUB R1, 1 ; diminui uma linha (sobe no ecrã)
-
-    fim_rotina:
-        POP R8
-        RET
 
