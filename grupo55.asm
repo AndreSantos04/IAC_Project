@@ -14,6 +14,14 @@
 
 ; F - Diminui o valor do display
 
+;*********************************************************************************
+; TO-DO
+; 1 - CRIAR PROCESSO DO TECLADO - ANDRÉ
+; 2 - CRIAR PROCESSO DO PAINEL DE CONTROLO - TOMÁS
+; 3 - CRIRA PROCESSO DO DESENHO DE ASTEROIDE E SONDAS - TOMÁS
+; 4 - CRIAR PROCESSO COLISAO + DISPLAY - ANDRÉ
+; 5 - PROCESSO DE INICIO/PAUSA/FIM - ANDRÉ
+; 6 - VARIOS ASTEROIDES E SONDAS
 
 
 
@@ -25,8 +33,9 @@ TEC_LIN				EQU 0C000H	; endereço das linhas do teclado (periférico POUT-2)
 TEC_COL				EQU 0E000H	; endereço das colunas do teclado (periférico PIN)
 LINHA_TECLADO	    EQU  0010H	; linha a testar 1 bit a esquerda da linha maxima (8b)
 MASCARA				EQU 0FH		; para isolar os 4 bits de menor peso, ao ler as colunas do teclado
-TECLA_ESQUERDA			EQU 1		; tecla na primeira coluna do teclado (tecla C)
-TECLA_DIREITA			EQU 2		; tecla na segunda coluna do teclado (tecla D)
+
+;TECLA_ESQUERDA			EQU 1		; tecla na primeira coluna do teclado (tecla C)
+;TECLA_DIREITA			EQU 2		; tecla na segunda coluna do teclado (tecla D)
 
 COMANDOS				EQU	6000H			; endereço de base dos comandos do MediaCenter
 
@@ -48,12 +57,15 @@ COLUNA_SONDA            EQU 32      ; coluna da sonda
 MIN_COLUNA		        EQU  0		; número da coluna mais à esquerda que o objeto pode ocupar
 MAX_COLUNA		        EQU  63        ; número da coluna mais à direita que o objeto pode ocupar
 
-ATRASO			EQU	5H		; (inicialmente a 400) atraso para limitar a velocidade de movimento do asteroide/nave
 
 ; * Dimensões dos bonecos
 LARGURA_ASTEROIDE		EQU	5
 ALTURA			        EQU	5		; altura do asteroide e da nave
 LARGURA_NAVE            EQU 15
+
+;*Constantes - movimento
+ATRASO			EQU	5H		; (inicialmente a 400) atraso para limitar a velocidade de movimento do asteroide/nave
+ALCANCE_SONDA			EQU  12		; alcance maximo da sonda
 
 
 ; * Constantes - cores
@@ -67,7 +79,7 @@ ROSA          EQU 0FF3FH ; cor do pixel: rosa em ARGB (opaco e vermelho no máxi
 
 
 
-; * Constantes - teclado/display
+; * Constantes - teclas/display
 VALOR_INICIAL_DISPLAY EQU 0064H   ; valor inicial do display (100 EM DECIMAL)
 
 INCREMENTO_DISPLAY EQU 000BH    ; tecla que incrementa o valor do display
@@ -98,7 +110,6 @@ IMAGEM_PAUSE       EQU 2
 ; Como input: R0, R1, R2 (podem ser alterados após o seu uso nas rotinas)
 ; Como output:(não convém serem alterados)
 ; - R5,R6,R7 ->posição do asteroide(R5 e R6) e posição da sonda(R7)
-; - R8: Estado do jogo (POR COMECAR, A JOGAR, PAUSA)
 ; - R9: Tecla clicada
 ; - R11: Valor hexadecimal do display 
 ; - R10 : Descrição do papel de registo de controlo de R10
@@ -112,13 +123,36 @@ IMAGEM_PAUSE       EQU 2
 ; * Dados 
 ; *********************************************************************************
 	PLACE       1000H
-pilha:
-	STACK 100H			; espaço reservado para a pilha 
-						; (200H bytes, pois são 100H words)
-SP_inicial:				; este é o endereço (1200H) com que o SP deve ser 
-						; inicializado. O 1.º end. de retorno será 
-						; armazenado em 11FEH (1200H-2)
+; Reserva do espaço para as pilhas dos diferentes processos
+	STACK 100H			; espaço reservado para a pilha do processo principal
+SP_programa_inicial:				; este é o endereço (1200H) com que o SP deve ser 
+
+    STACK 100H			; espaço reservado para a pilha do processo teclado
+SP_inicial_teclado:
+
+tecla_carregada:
+	LOCK 0				; LOCK para o teclado comunicar aos restantes processos que tecla detetou,
+						; uma vez por cada tecla carregada
 							
+tecla_continuo:
+	LOCK 0				; LOCK para o teclado comunicar aos restantes processos que tecla detetou,
+						; enquanto a tecla estiver carregada
+
+jogo_pausado:
+	LOCK 0
+
+game_over:
+	LOCK 0
+
+espera_tecla_recomeçar:
+	LOCK 0
+
+estado_jogo:
+	WORD 0				; WORD para o estado do jogo (0 - em jogo, 1 - perdeu sem energia, 2 - perdeu por colisão, 3 - em pausa)
+
+nova_nave:
+    WORD 0              ; WORD para o redesenhar a nave
+
 DEF_ASTEROIDE_N_MINERAVEL:					; tabela que define o asteroide não minerável (largura, altura, pixels e sua cor)
 	WORD		 LARGURA_ASTEROIDE
     WORD        ALTURA
@@ -162,12 +196,12 @@ DEF_SONDA:                              ; tabela que define a sonda (apenas um p
 ; *********************************************************************************
 ; * Código
 ; *********************************************************************************
+
 PLACE   0                     ; o código tem de começar em 0000H
 inicio:
 
+    MOV  SP, SP_programa_inicial		; inicializa SP do programa principal
 
-    MOV  SP, SP_inicial		; inicializa SP para a palavra a seguir
-              ; à última da pilha
                               
     MOV  [APAGA_AVISO], R1	; apaga o aviso de nenhum cenário selecionado (o valor de R1 não é relevante)
     MOV  [APAGA_ECRÃ], R1	; apaga todos os pixels já desenhados (o valor de R1 não é relevante)
@@ -179,63 +213,156 @@ inicio:
     
     
 
-    MOV R8, 0 ; Controla se o estado em que está o jogo (0 - jogo terminado, 1 - jogo a decorrer, 2 - jogo parado)
+    ;MOV [estado_jogo], 0 ; Controla se o estado em que está o jogo (0 - jogo terminado, 1 - jogo a decorrer, 2 - jogo parado)
+    CALL proc_teclado    ; Cria o processo teclado
 
-espera_tecla:   
-    CALL rot_teclado			; leitura às teclas
-    CMP R1, 0
-    JZ espera_tecla
+espera_inicio_jogo:
+    MOV R1, [tecla_carregada] ; Verifica se alguma tecla foi carregada
+    MOV R2, JOGO_COMECA
+    CMP R1, R2
+    JNZ espera_inicio_jogo
+
+inicia:
+
+    MOV R8, IMAGEM_JOGO                  
+    MOV [SELECIONA_CENARIO_FUNDO], R8     ; coloca o ecrã de jogo
+
+    MOV R11, VALOR_INICIAL_DISPLAY            
+    MOV [DISPLAYS], R11     ; inicializa o display com o valor inicial 
+
+    MOV R10, 0
+
+;;;;;;; DAR OS CALLS AOS PROCESSOS ;;;;;;;;
+
+    MOV R2, DEF_NAVE                     ; Inicializa o registo 2 que vai indicar que boneco desenhar
+    CALL rot_desenha_asteroide_e_nave ; desenha a nave
+
+    MOV R2, DEF_ASTEROIDE_N_MINERAVEL    ; guarda qual a próxima tabela a ser desenhada 
+    CALL rot_desenha_asteroide_e_nave ; desenha o asteroide se ainda não estiver desenhado
+
+    MOV R2, DEF_SONDA         ; guarda a próxima tabela a ser desenhada         
+    CALL rot_desenha_sonda ; desenha a sonda
+
+;**********************************************************************
+; Rotina
+;
+; Inicia o jogo
+;
+; PARAMETROS: R8 - estado do jogo
+;             R11 - valor apresentado no display (hexadecimal)
+;**********************************************************************
 
 
-    CALL rot_converte_numero   ; retorna R9 com a tecla premida
-	
-    CALL rot_acoes_teclado   ;executa as acoes de acordo com a tecla premida
-
-
-	JMP espera_tecla
 
 
 ; **********************************************************************
-; TECLADO - Faz uma leitura às teclas de uma linha do teclado e retorna o valor lido
+; Processo
 ;
-;
-; Retorna: 	R0 - valor lido das colunas do teclado (0, 1, 2, 4, ou 8)
-;			R1 - Valor das linhas	
+; TECLADO - Processo que deteta quando se carrega numa tecla e coloca o valor no LOCK
+;		  	tecla_carregada
+;		
+;		R2 - endereço periferico das linhas 
+;		R3 - endereço periferico das colunas
+;		R5 - mascara
 ; **********************************************************************
-rot_teclado:
-	PUSH	R2
-	PUSH	R3
-	PUSH	R5
 
-    MOV R1, LINHA_TECLADO   ; por linha a 0001 0000 - para testar qual das linhas foi clicada
 
+PROCESS SP_inicial_teclado	; indicação de que a rotina que se segue é um processo,
+						    ; com indicação do valor para inicializar o SP
+proc_teclado:
+	MOV  R2, TEC_LIN		; endereço do periférico das linhas
+	MOV  R3, TEC_COL		; endereço do periférico das colunas
+	MOV  R5, MASCARA		; para isolar os 4 bits de menor peso, ao ler as colunas do teclado
+    MOV  R4, [estado_jogo]  ; guarda o estado do jogo
     loop_linha:
+       	MOV R1, LINHA_TECLADO ; por linha a 0001 0000 - para testar qual das linhas foi clicada
+
+    espera_tecla:				; neste ciclo espera-se até uma tecla ser premida
+
+    	YIELD				; este ciclo é potencialmente bloqueante, pelo que tem de
+    						; ter um ponto de fuga (aqui pode comutar para outro processo)
         SHR R1, 1           ; dividir por 2 para testar as varias linhas do teclado
-        CMP R1, 0
-        JZ fim_teclado
+        JZ  loop_linha      ; se for zero recomeçar o ciclo, caso contrario testar colunas 
+
+    	MOVB [R2], R1			; escrever no periférico de saída (linhas)
+    	MOVB R0, [R3]			; ler do periférico de entrada (colunas)
+    	AND  R0, R5			; elimina bits para além dos bits 0-3
+    	CMP  R0, 0			; há tecla premida?
+    	JZ   espera_tecla		; se nenhuma tecla premida, repete
+
+        CALL rot_converte_numero   ; retorna R9 com a tecla premida
     
-    	MOV  R2, TEC_LIN   ; endereço do periférico das linhas
-    	MOV  R3, TEC_COL   ; endereço do periférico das colunas
-    	MOV  R5, MASCARA   ; para isolar os 4 bits de menor peso, ao ler as colunas do teclado
-    	MOVB [R2], R1      ; escrever no periférico de saída (linhas)
-    	MOVB R0, [R3]      ; ler do periférico de entrada (colunas)
-    	AND  R0, R5        ; elimina bits para além dos bits 0-3
-    	CMP	R0, 0
-    	JZ loop_linha		; se nenhuma tecla premida, testa linha seguinte
+    	MOV	[tecla_carregada], R9	; informa quem estiver bloqueado neste LOCK que uma tecla foi carregada
+    							; ( o valor escrito e a tecla carregada)
+    acoes_teclado:
+        MOV R6, JOGO_PAUSA
+        CMP R9, R6
+        JZ pausa_jogo
+        MOV R6, JOGO_COMECA
+        CMP R9, R6
+        JZ novo_jogo
 
-    tecla_premida:
-        MOVB [R2], R1      ; escrever no periférico de saída (linhas)
-        MOVB R9, [R3]
-        AND R9, R5
-        CMP R0, R9          ; testar se a coluna e igual
-        JZ tecla_premida
+    ha_tecla:					; neste ciclo espera-se até NENHUMA tecla estar premida
+
+    	YIELD				; este ciclo é potencialmente bloqueante, pelo que tem de
+    						; ter um ponto de fuga (aqui pode comutar para outro processo)
+
+    	MOV	[tecla_continuo], R9	; informa quem estiver bloqueado neste LOCK que uma tecla está a ser carregada
+    							; (o valor escrito é a tecla premida)
+        MOVB [R2], R1			; escrever no periférico de saída (linhas)
+    							; mantenho mesmo R1 porque esse R1 tem a linha que foi premida em cima
+    							; nao preciso de ir a procura outra vez qual linha foi premida
+        MOVB R0, [R3]			; ler do periférico de entrada (colunas)
+    	AND  R0, R5				; elimina bits para além dos bits 0-3
+        CMP  R0, 0				; há tecla premida?
+        JNZ  ha_tecla			; se ainda houver uma tecla premida, espera até não haver
+
+    	JMP	espera_tecla		; esta "rotina" nunca retorna porque nunca termina
+    						; Se se quisesse terminar o processo, era deixar o processo chegar a um RET
+
+    pausa_jogo:
+        
+        CMP R4, 3
+        JZ  unpause
+
+        CMP R4, 0
+        JNZ ha_tecla
+
+        MOV R4, 3
+        MOV [estado_jogo], R4
+
+        MOV R7, IMAGEM_PAUSE                       
+        MOV [SELECIONA_CENARIO_FUNDO], R7          ;coloca o ecrã de pausa
+
+        JMP ha_tecla
+    unpause:
+        
+        MOV R4, 0
+        MOV [estado_jogo], R4
+
+        MOV R7, IMAGEM_JOGO                        
+        MOV [SELECIONA_CENARIO_FUNDO], R7          ;volta ao ecrã de jogo 
+
+        JMP ha_tecla
+
+    novo_jogo:
+        CMP R4, 1
+        JZ comeca_novo_jogo
+        CMP R4, 2
+        JZ comeca_novo_jogo
+        JMP ha_tecla
+    comeca_novo_jogo:
+
+        MOV R4, 0
+        MOV [estado_jogo], R4
+        MOV R4, 1
+        MOV [nova_nave], R4
+
+        MOV R7, IMAGEM_JOGO                        
+        MOV [SELECIONA_CENARIO_FUNDO], R7          ;volta ao ecrã de jogo 
+        JMP ha_tecla
 
 
-    fim_teclado:
-    	POP	R5
-    	POP	R3
-    	POP	R2
-    	RET
 
 
 ; **********************************************************************
@@ -285,18 +412,17 @@ rot_converte_numero:
 
 
 
-;; ************************************************************************************
-;; Rotina
-;; desenha asteroide ou nave, dependendo do valor de R2
-;;
-;; PARÂMETROS:  R2 - tipo da tabela (nave, asteroide não minerável, asteroide 
-;;              minerável ou explosão de asteroide), a sonda é tratada noutra rotina
-;;              R5 - linha do primeiro píxel do asteroide
-;;              R6 - coluna do primeiro píxel do asteroide
-
-;;
-;; RETORNA: R5 e R6 no caso de se desenhar um asteroide - linha e coluna respetivamente
-;; ************************************************************************************
+; ************************************************************************************
+; Rotina
+; desenha asteroide ou nave, dependendo do valor de R2
+;
+; PARÂMETROS:  R2 - tipo da tabela (nave, asteroide não minerável, asteroide 
+;              minerável ou explosão de asteroide), a sonda é tratada noutra rotina
+;              R5 - linha do primeiro píxel do asteroide
+;              R6 - coluna do primeiro píxel do asteroide
+;
+; RETORNA: R5 e R6 no caso de se desenhar um asteroide - linha e coluna respetivamente
+; ************************************************************************************
 
 rot_desenha_asteroide_e_nave: ; Deposita os valores dos registos abaixo no stack
 
@@ -380,17 +506,17 @@ rot_desenha_asteroide_e_nave: ; Deposita os valores dos registos abaixo no stack
         RET
 
 
-;; ************************************************************************************
-;; Rotina
-;; preenche os pixeis de uma linha, ou com a cor presente em cada pixel da tabela
-;; do objeto, se R10 for diferente de -1 ou com cor 0, ou seja, apaga os pixels
-;;
-;; PARÂMETROS:  R2 - tipo da tabela (nave, asteroide não minerável, asteroide 
-;;              minerável ou explosão de asteroide), a sonda é tratada noutra rotina
-;;              R7 - linha do objeto
-;;              R4 - coluna do objeto
-;;
-;; ************************************************************************************
+; ************************************************************************************
+; Rotina
+; preenche os pixeis de uma linha, ou com a cor presente em cada pixel da tabela
+; do objeto, se R10 for diferente de -1 ou com cor 0, ou seja, apaga os pixels
+;
+; PARÂMETROS:  R2 - tipo da tabela (nave, asteroide não minerável, asteroide 
+;              minerável ou explosão de asteroide), a sonda é tratada noutra rotina
+;              R7 - linha do objeto
+;              R4 - coluna do objeto
+;
+; ************************************************************************************
 
 rot_desenha_pixels_linha:       		; desenha os pixels do asteroide/nave a partir da tabela
     
@@ -434,17 +560,17 @@ rot_desenha_pixels_linha:       		; desenha os pixels do asteroide/nave a partir
         POP R0
         RET
 
-;; **********************************************************************
-;; Rotina
-;; Serve para desenhar ou apagar a sonda dependendo do valor de R10
-;;
-;; PARÂMETROS: R2 - enderço inicial da tabela da sonda 
-;;             R7 - sua linha no momento
-;; 
-;; RETORNA: R10 - Registo para controlar o próximo desenho, se R10 veio a -1 (para apagar)
-;;               irá devolver R10 com 3, o que indica ao processador que a próxima chamada
-;;               desta rotina será para desenhar
-;; **********************************************************************
+; **********************************************************************
+; Rotina
+; Serve para desenhar ou apagar a sonda dependendo do valor de R10
+;
+; PARÂMETROS: R2 - enderço inicial da tabela da sonda 
+;             R7 - sua linha no momento
+; 
+; RETORNA: R10 - Registo para controlar o próximo desenho, se R10 veio a -1 (para apagar)
+;               irá devolver R10 com 3, o que indica ao processador que a próxima chamada
+;               desta rotina será para desenhar
+; **********************************************************************
 rot_desenha_sonda:
     PUSH R1
     PUSH R2
@@ -506,21 +632,10 @@ rot_acoes_teclado:
     PUSH R2
     
 
-    MOV R0, JOGO_COMECA   ; tecla para começar o jogo
-    CMP R9, R0
-    JZ jogo_comeca       ; procede ao inicio do jogo
-    CMP R8, 0
-    JZ fim_acoes_teclado ; se o jogo não começou, não faz nada
-
     MOV R0, JOGO_TERMINA  ; tecla para terminar o jogo
     CMP R9, R0
     JZ jogo_termina       ; procede ao termino do jogo
 
-    MOV R0, JOGO_PAUSA   ; tecla para pausar o jogo
-    CMP R9, R0
-    JZ jogo_pausa       ; procede à pausa do jogo
-    CMP R8, 2
-    JZ fim_acoes_teclado ; se o jogo está em pausa, não faz nada
 
     MOV R0, INCREMENTO_DISPLAY  ; tecla referente ao incremento do display
     CMP R9, R0
@@ -592,16 +707,7 @@ rot_acoes_teclado:
 
         JMP fim_acoes_teclado   
 
-    jogo_comeca:
 
-        CALL rot_jogo_comeca     ; inicia o jogo
-        JMP fim_acoes_teclado
-
-    jogo_pausa:
-
-        CALL rot_jogo_pausado    ;coloca/retira o jogo da pausa
-
-        JMP fim_acoes_teclado
 
     jogo_termina:
 
@@ -614,46 +720,6 @@ rot_acoes_teclado:
         POP R2
         POP R0
         RET
-
-
-;**********************************************************************
-; Rotina
-;
-; Inicia o jogo
-;
-; PARAMETROS: R8 - estado do jogo
-;             R11 - valor apresentado no display (hexadecimal)
-;**********************************************************************
-
-rot_jogo_comeca:
-
-    CMP R8, 0               
-    JGT fim_jogo_comeca                   ; se o jogo foi iniciado nao faz nada  
-
-    MOV R8, IMAGEM_JOGO                  
-    MOV [SELECIONA_CENARIO_FUNDO], R8     ; coloca o ecrã de jogo
-
-    MOV R11, VALOR_INICIAL_DISPLAY            
-    MOV [DISPLAYS], R11     ; inicializa o display com o valor inicial 
-
-    MOV R8, 1                             ; muda o estado do jogo 
-
-    MOV R10, 0
-
-    MOV R2, DEF_NAVE                     ; Inicializa o registo 2 que vai indicar que boneco desenhar
-    CALL rot_desenha_asteroide_e_nave ; desenha a nave
-
-    MOV R2, DEF_ASTEROIDE_N_MINERAVEL    ; guarda qual a próxima tabela a ser desenhada 
-    CALL rot_desenha_asteroide_e_nave ; desenha o asteroide se ainda não estiver desenhado
-
-    MOV R2, DEF_SONDA         ; guarda a próxima tabela a ser desenhada         
-    CALL rot_desenha_sonda ; desenha a sonda
-
-    fim_jogo_comeca:
-
-        RET
-
-
 
 ;**********************************************************************
 ; Rotina
@@ -676,49 +742,15 @@ rot_jogo_termina:
     RET
 
 
-
-;**********************************************************************
-; Rotina
-;
-; Pausa o jogo ou retira o jogo da pausa
-;
-; PARAMETROS: R8 - estado do jogo
-;**********************************************************************
-
-rot_jogo_pausado:
-
-    CMP R8, 1
-    JZ pause
-    CMP R8, 2
-    JZ unpause
-
-    pause:
-        MOV R8, IMAGEM_PAUSE                       
-        MOV [SELECIONA_CENARIO_FUNDO], R8          ;coloca o ecrã de pausa
-
-        MOV R8, 2                                  ;muda o estado do jogo para em pausa
-        JMP fim_jogo_pausado
-
-    unpause:
-        MOV R8, IMAGEM_JOGO                        
-        MOV [SELECIONA_CENARIO_FUNDO], R8          ;volta ao ecrã de jogo 
-
-        MOV R8, 1                                  ;muda o estado do jogo
-
-    fim_jogo_pausado:
-        
-        RET
-
-
-;; **********************************************************************
-;; Rotina 
-;; - indica qual a próxima posição de um determinado objeto
-;;  
-;; - PARÂMETROS:    R5, R6 (linha e coluna do asteroide)
-;;                  R7 (linha da sonda)
-;; 
-;; - RETORNA: Os registos de posição atualizados (R5 e R6 ou R7 dependendo do tipo do objeto)
-;; **********************************************************************
+; **********************************************************************
+; Rotina 
+; - indica qual a próxima posição de um determinado objeto
+;  
+; - PARÂMETROS:    R5, R6 (linha e coluna do asteroide)
+;                  R7 (linha da sonda)
+; 
+; - RETORNA: Os registos de posição atualizados (R5 e R6 ou R7 dependendo do tipo do objeto)
+; **********************************************************************
 
 rot_atualiza_posicao:
     PUSH R0
@@ -741,8 +773,4 @@ rot_atualiza_posicao:
     fim_atualiza_posicao:
         POP R0
         RET
-
-
-
-
 
