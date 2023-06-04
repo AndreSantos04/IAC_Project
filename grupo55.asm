@@ -33,7 +33,7 @@ TEC_LIN				EQU 0C000H	; endereço das linhas do teclado (periférico POUT-2)
 TEC_COL				EQU 0E000H	; endereço das colunas do teclado (periférico PIN)
 LINHA_TECLADO	    EQU 0010H	; linha a testar 1 bit a esquerda da linha maxima (8b)
 MASCARA				EQU 0FH		; para isolar os 4 bits de menor peso, ao ler as colunas do teclado
-
+FATOR               EQU 1000    ; fator da divisao para a conversão de hexadecimal para decimal
 ;TECLA_ESQUERDA			EQU 1		; tecla na primeira coluna do teclado (tecla C)
 ;TECLA_DIREITA			EQU 2		; tecla na segunda coluna do teclado (tecla D)
 
@@ -45,7 +45,10 @@ DEFINE_PIXEL    			EQU COMANDOS + 12H		; endereço do comando para escrever um p
 APAGA_AVISO     			EQU COMANDOS + 40H		; endereço do comando para apagar o aviso de nenhum cenário selecionado
 APAGA_ECRÃ	 				EQU COMANDOS + 02H		; endereço do comando para apagar todos os pixels já desenhados
 SELECIONA_CENARIO_FUNDO  	EQU COMANDOS + 42H		; endereço do comando para selecionar uma imagem de fundo
+SELECIONA_CENARIO_FRONTAL   EQU COMANDOS + 46H		; endereço do comando para selecionar uma imagem frontal
 TOCA_SOM					EQU COMANDOS + 5AH		; endereço do comando para tocar um som
+
+
 
 ; * Constantes - posição
 LINHA_ASTEROIDE         EQU  0      ; 1ª linha do asteroide 
@@ -85,14 +88,14 @@ AMARELO		  EQU 0FFF0H ; cor do pixel: amarelo em ARGB (opaco, vermelho e verde n
 
 ; * Constantes - teclado/display
 
-INCREMENTO_DISPLAY EQU 000BH    ; tecla que incrementa o valor do display
-DECREMENTO_DISPLAY EQU 000FH    ; tecla que decremento o valor do display
-SONDA_CIMA         EQU 000AH    ; tecla que move a sonda para cima
-ASTEROIDE_BAIXO    EQU 0002H    ; tecla que move o asteroide para baixo
+INCREMENTO_DISPLAY      EQU 000BH    ; tecla que incrementa o valor do display
+DECREMENTO_DISPLAY      EQU 000FH    ; tecla que decremento o valor do display
+SONDA_CIMA              EQU 000AH    ; tecla que move a sonda para cima
+ASTEROIDE_BAIXO         EQU 0002H    ; tecla que move o asteroide para baixo
 
-TECLA_JOGO_COMECA        EQU 000CH    ; tecla que começa o jogo
-TECLA_JOGO_PAUSA         EQU 000DH    ; tecla que pausa o jogo
-TECLA_JOGO_TERMINA       EQU 000EH    ; tecla que termina o jogo
+TECLA_JOGO_COMECA       EQU 000CH    ; tecla que começa o jogo
+TECLA_JOGO_PAUSA        EQU 000DH    ; tecla que pausa o jogo
+TECLA_JOGO_TERMINA      EQU 000EH    ; tecla que termina o jogo
 
 JOGO                    EQU 0    ; estado do jogo: jogo
 SEM_ENERGIA             EQU 1    ; estado do jogo: perdeu sem energia
@@ -105,9 +108,14 @@ VALOR_INICIAL_DISPLAY     EQU 0100H   ; valor inicial do display (100 EM DECIMAL
 MIN_VALOR_DISPLAY         EQU 0000H   ; valor minimo do display
 MAX_VALOR_DISPLAY         EQU 03E7H   ; valor maximo do display
 
-AUMENTA_ENERGIA           EQU 0019H   ; valor que aumenta a energia devido a uma asteroide mineravel
 DIMINUI_ENERGIA_INT       EQU 0003H   ; valor que diminui a energia devido a interrupcao
+AUMENTA_ENERGIA           EQU 0019H   ; valor que aumenta a energia devido a uma asteroide mineravel
 DIMINUI_ENERGIA_SONDA     EQU 0005H   ; valor que diminui a energia devido a sonda
+
+DISPLAY_ENERGIA_INT       EQU 0       ; indica ao processo display que a energia diminui devido a interrupcao
+DISPLAY_AUMENTA_ENERGIA   EQU 1       ; indica ao processo display que a energia aumenta
+DISPLAY_ENERGIA_SONDA     EQU 2       ; indica ao processo display que a energia diminui devido a sonda
+
 ; * Constantes - MEDIA CENTER
 SOM_DISPARO        EQU 2
 SOM_ASTEROIDE      EQU 1
@@ -167,8 +175,8 @@ jogo_pausado:           ; LOCK para comunicar aos processos que o jogo está em 
     LOCK 0               
 
 energia_display:        ; LOCK para bloquear o processo DISPLAY e comunicar qual a alteração a fazer 
-    LOCK 0              ; se o LOCK estiver a 0, a energia aumenta (ASTEROIDE MINERAVEL)
-                        ; se o LOCK estiver a 1, a energia diminui (RELOGIO DE INTERRUPCAO)
+    LOCK 0              ; se o LOCK estiver a 0, a energia diminui (RELOGIO DE INTERRUPCAO)
+                        ; se o LOCK estiver a 1, a energia aumenta (ASTEROIDE MINERAVEL)
                         ; se o LOCK estiver a 2, a energia diminui (SONDA)
 game_over:
 	LOCK 0
@@ -309,6 +317,7 @@ proc_teclado:
 	MOV  R3, TEC_COL		; endereço do periférico das colunas
 	MOV  R5, MASCARA		; para isolar os 4 bits de menor peso, ao ler as colunas do teclado
     MOV  R4, [estado_jogo]  ; guarda o estado do jogo
+    
     loop_linha:
        	MOV R1, LINHA_TECLADO ; por linha a 0001 0000 - para testar qual das linhas foi clicada
 
@@ -339,8 +348,8 @@ proc_teclado:
 
     ha_tecla:					; neste ciclo espera-se até NENHUMA tecla estar premida
 
-    	YIELD				; este ciclo é potencialmente bloqueante, pelo que tem de
-    						; ter um ponto de fuga (aqui pode comutar para outro processo)
+    	YIELD				    ; este ciclo é potencialmente bloqueante, pelo que tem de
+    						    ; ter um ponto de fuga (aqui pode comutar para outro processo)
 
     	MOV	[tecla_continuo], R9	; informa quem estiver bloqueado neste LOCK que uma tecla está a ser carregada
     							; (o valor escrito é a tecla premida)
@@ -353,7 +362,7 @@ proc_teclado:
         JNZ  ha_tecla			; se ainda houver uma tecla premida, espera até não haver
 
     	JMP	espera_tecla		; esta "rotina" nunca retorna porque nunca termina
-    						; Se se quisesse terminar o processo, era deixar o processo chegar a um RET
+    						    ; Se se quisesse terminar o processo, era deixar o processo chegar a um RET
 
     pausa_jogo:
         
@@ -365,6 +374,8 @@ proc_teclado:
 
         MOV R4, PAUSA                           ; se o jogo estiver a decorrer 
         MOV [estado_jogo], R4                   ; coloca o jogo em pausa
+
+        ;;;;;;;;;;;;;;;;;;;;;; COLOCAR COMO OVERLAY ;;;;;;;;;;;;;;;;;;;;;;;;
 
         MOV R7, IMAGEM_PAUSE                       
         MOV [SELECIONA_CENARIO_FUNDO], R7       ; coloca o ecrã de pausa
@@ -704,57 +715,57 @@ PROCESS SP_display
 proc_display:
     MOV R1, VALOR_INICIAL_DISPLAY_HEX      ; Valor inicial do display em hexadecimal (64H)
 
-atualiza_energia:
-    MOV R0, [energia_display]              ; Verifica o valor do LOCK energia_display para saber como atualizar a energia
-    
-    MOV R2, [estado_jogo]                  ; Verifica o estado do jogo
-    CMP R2, PAUSA                          ; Se estiver em pausa não atualiza a energia
-    JZ pausa_energia
+    atualiza_energia:
+        MOV R0, [energia_display]              ; Verifica o valor do LOCK energia_display para saber como atualizar a energia
+        
+        MOV R2, [estado_jogo]                  ; Verifica o estado do jogo
+        CMP R2, PAUSA                          ; Se estiver em pausa não atualiza a energia
+        JZ pausa_energia
 
-    CMP R2, SEM_ENERGIA                    ; Se estiver sem energia não atualiza a energia
-    JZ sem_energia
+        CMP R2, SEM_ENERGIA                    ; Se estiver sem energia não atualiza a energia
+        JZ sem_energia
 
-    CMP R0, 1                              ; 1 - asteroide mineravel destruido, aumenta energia
-    JZ aumenta_energia
-    CMP R0, 2                              ; 2 - sonda disparada, diminui energia (5%)
-    JZ diminui_energia_sonda
+        CMP R0, DISPLAY_AUMENTA_ENERGIA        ; 1 - asteroide mineravel destruido, aumenta energia
+        JZ aumenta_energia
+        CMP R0, DISPLAY_ENERGIA_SONDA          ; 2 - sonda disparada, diminui energia (5%)
+        JZ diminui_energia_sonda
 
-diminui_energia_int:                       ; 3 - rotina de interrupcao, diminui energia (3%)
-    
-    SUB R1, DIMINUI_ENERGIA_INT
-    CMP R1, MIN_VALOR_DISPLAY              ; Verifica se a energia chegou a 0 apos a diminuicao
-    JLE sem_energia
-    JMP atualiza_display                   ; Se nao chegou, atualiza o valor no display
+    diminui_energia_int:                       ; 3 - rotina de interrupcao, diminui energia (3%)
+        
+        SUB R1, DIMINUI_ENERGIA_INT
+        CMP R1, MIN_VALOR_DISPLAY              ; Verifica se a energia chegou a 0 apos a diminuicao
+        JLE sem_energia
+        JMP atualiza_display                   ; Se nao chegou, atualiza o valor no display
 
-diminui_energia_sonda:
-    SUB R1, DIMINUI_ENERGIA_SONDA
-    CMP R1, MIN_VALOR_DISPLAY              ; Verifica se a energia chegou a 0 apos a diminuicao
-    JLE sem_energia
-    JMP atualiza_display                   ; Se nao chegou, atualiza o valor no display
+    diminui_energia_sonda:
+        SUB R1, DIMINUI_ENERGIA_SONDA
+        CMP R1, MIN_VALOR_DISPLAY              ; Verifica se a energia chegou a 0 apos a diminuicao
+        JLE sem_energia
+        JMP atualiza_display                   ; Se nao chegou, atualiza o valor no display
 
-aumenta_energia:
-    MOV R2, AUMENTA_ENERGIA
-    ADD R1, R2
-    JMP atualiza_display                 
+    aumenta_energia:
+        MOV R2, AUMENTA_ENERGIA
+        ADD R1, R2
+        JMP atualiza_display                 
 
-sem_energia:
-    ;;;game over sem energia CRIAR UM LOCK
-    MOV R0, SEM_ENERGIA                    ; Altera o estado do jogo para SEM_ENERGIA, terminando-o
-    MOV [estado_jogo], R0
-    MOV R0, 0
-    MOV [DISPLAYS], R0                     ; Display fica a 0 (sem energia)
-    JMP proc_display
+    sem_energia:
+        ;;;game over sem energia CRIAR UM LOCK
+        MOV R0, SEM_ENERGIA                    ; Altera o estado do jogo para SEM_ENERGIA, terminando-o
+        MOV [estado_jogo], R0
+        MOV R0, 0
+        MOV [DISPLAYS], R0                     ; Display fica a 0 (sem energia)
+        JMP proc_display
 
-atualiza_display:
-    ;MOV [display_HEX], R1
-    CALL rot_converte_Hex_Decimal              ; Converte o valor no R1 (hexadecimal) para decimal (R5)
-    MOV [DISPLAYS], R5                     ; Atualiza o valor no display com o valor decimal (R5)
-    JMP atualiza_energia
+    atualiza_display:
+        ;MOV [display_HEX], R1
+        CALL rot_converte_Hex_Decimal              ; Converte o valor no R1 (hexadecimal) para decimal (R5)
+        MOV [DISPLAYS], R5                     ; Atualiza o valor no display com o valor decimal (R5)
+        JMP atualiza_energia
 
 
-pausa_energia:
-    MOV R9, [jogo_pausado]                 ; Bloqueia o processo enquanto o jogo estiver em pausa
-    JMP atualiza_energia
+    pausa_energia:
+        MOV R9, [jogo_pausado]                 ; Bloqueia o processo enquanto o jogo estiver em pausa
+        JMP atualiza_energia
 
 ; **********************************************************************
 ; ROTINA
@@ -778,33 +789,35 @@ rot_converte_Hex_Decimal:
 	PUSH R2
 	PUSH R3
 	PUSH R4
+    PUSH R6
 
 	MOV R4, 0
 	MOV R5, 0H
-	MOV R3, 1000		; o fator começa em 1000
-ciclo_converte_hex:
-	MOD R1, R3 			; numero = numero MOD Fator
-	MOV R6, 10				
-	DIV R3, R6			; fator = fator DIV 10
+	MOV R3, FATOR		; o fator começa em 1000
+    ciclo_converte_hex:
+        MOD R1, R3 			; numero = numero MOD Fator
+        MOV R6, 10				
+        DIV R3, R6			; fator = fator DIV 10
 
-	MOV R2, R1			  
-	DIV R2, R3			; digito = numero DIV fator
-	MOV R4, R2
+        MOV R2, R1			  
+        DIV R2, R3			; digito = numero DIV fator
+        MOV R4, R2
 
-	SHL R5, 4			; resultado = resultado SHL 4 (proximo nibble)
-						; desloca para cada nibble ter um digito
-	OR R5,R4			; resultado = resultado OR digito
-						; adiciona novo digito ao nible com menos peso
+        SHL R5, 4			; resultado = resultado SHL 4 (proximo nibble)
+                            ; desloca para cada nibble ter um digito
+        OR R5,R4			; resultado = resultado OR digito
+                            ; adiciona novo digito ao nible com menos peso
 
-	MOV R2,R3			
-	SUB R2, 1			; Ver se factor é igual a 1
-	JNZ ciclo_converte_hex
+        MOV R2,R3			
+        SUB R2, 1			; Ver se fator é igual a 1
+        JNZ ciclo_converte_hex
 
-	POP R4 
-	POP R3
-	POP R2 
-	POP R1
-	RET 
+        POP R6
+        POP R4 
+        POP R3
+        POP R2 
+        POP R1
+        RET 
 
 ; **********************************************************************
 ; Rotina
@@ -956,26 +969,26 @@ proc_painel_nave:
 	MOV R0, LARGURA_PAINEL_NAVE		;guarda a largura do painel
 	MOV R1, ALTURA_PAINEL_NAVE		;guarda a altura do painel
 
-posicao_painel_nave:
-	
-	MOV R7, LINHA_PAINEL		; linha do painel
-	MOV R4, COLUNA_PAINEL       ; coluna do painel
-    MOV R10, 4                  ; irá servir para dizer à rot_desenha_pixels_linha que o input é a tabela de cores
+    posicao_painel_nave:
+        
+        MOV R7, LINHA_PAINEL		; linha do painel
+        MOV R4, COLUNA_PAINEL       ; coluna do painel
+        MOV R10, 4                  ; irá servir para dizer à rot_desenha_pixels_linha que o input é a tabela de cores
 
-loop_painel:
-    YIELD
+    loop_painel:
+        YIELD
 
-    CALL rot_desenha_pixels_linha   ; muda a primeira linha do painel
-    ADD R7, 1
-    CALL rot_desenha_pixels_linha   ; muda a segunda linha do painel
-    SUB R7, 1
+        CALL rot_desenha_pixels_linha   ; muda a primeira linha do painel
+        ADD R7, 1
+        CALL rot_desenha_pixels_linha   ; muda a segunda linha do painel
+        SUB R7, 1
 
-verifica_pausa:                     ; verifica se o jogo está pausado
-    MOV R5, [estado_jogo]           ; se estiver, bloqueia o processo
-    CMP R5, PAUSA            
-    JNE loop_painel
-    MOV R5, [jogo_pausado]
-JMP loop_painel
+    verifica_pausa:                     ; verifica se o jogo está pausado
+        MOV R5, [estado_jogo]           ; se estiver, bloqueia o processo
+        CMP R5, PAUSA            
+        JNE loop_painel
+        MOV R5, [jogo_pausado]
+    JMP loop_painel
 
 ;escolhe_cor_pixel:
 ;	MOV R4, tabela_cores	; guarda o enderço da tabela das cores para se poderem aceder às cores
@@ -1005,7 +1018,7 @@ JMP loop_painel
 ;
  rot_int_2:                 ; Rotina que trata a interrupção 2
  	PUSH R0                 ; Desbloqueia o processo display para diminuir a energia da nave
- 	MOV R0, 0
+ 	MOV R0, DISPLAY_ENERGIA_INT
  	MOV [energia_display], R0
  	POP R0
  	RFE
