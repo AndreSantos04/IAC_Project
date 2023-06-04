@@ -816,10 +816,9 @@ posicao_painel_nave:
 	MOV R7, LINHA_PAINEL		; linha do painel
 	MOV R4, COLUNA_PAINEL       ; coluna do painel
 
-CALL rot_desenha_pixels_linha   ; muda a primeira linha do painel
+CALL rot_desenha_pixels_linha
     ADD R7, 1
-    MOV R2, tabela_cores		; escreve de novo o endereço da tabela de cores em R2 pois este é alterado na rotina chamada acima
-CALL rot_desenha_pixels_linha   ; muda a segunda linha do painel
+CALL rot_desenha_pixels_linha
 
 ;escolhe_cor_pixel:
 ;	MOV R4, tabela_cores	; guarda o enderço da tabela das cores para se poderem aceder às cores
@@ -861,4 +860,3 @@ rot_int_3:
 	MOV [R0], R1
 	POP R0
 	RFE
-

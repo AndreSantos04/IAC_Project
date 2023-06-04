@@ -300,7 +300,7 @@ inicio:
 	EI2					; permite interrupções 2
 	EI1					; permite interrupçoes  1
 	EI0					; permite interrupções 0
-	EI					; permite interrupções (geral)
+	EI				7	; permite interrupções (geral)
 						; a partir daqui, qualquer interrupção que ocorra usa
 						; a pilha do processo que estiver a correr nessa altura
 						
