@@ -30,12 +30,14 @@
 ; *********************************************************************************
 DISPLAYS		    EQU 0A000H	; endereço do periférico que liga aos displays
 TEC_LIN				EQU 0C000H	; endereço das linhas do teclado (periférico POUT-2)
-TEC_COL				EQU 0E000H	; endereço das colunas do teclado (periférico PIN)
+TEC_COL				EQU 0E000H	; endereço das colunas do teclado (periférico PIN ao qual vão ser acedidos os bits de 0 a 3)
+PIN                 EQU 0E000H  ; endereço do periférico PIN ao qual vão ser acedidos os bits de 4 a 7
 LINHA_TECLADO	    EQU 0010H	; linha a testar 1 bit a esquerda da linha maxima (8b)
 MASCARA				EQU 0FH		; para isolar os 4 bits de menor peso, ao ler as colunas do teclado
+MASCARA_2_BITS      EQU 03E7H   ; para isolar os 2 bits de menor peso
 FATOR               EQU 1000    ; fator da divisao para a conversão de hexadecimal para decimal
-;TECLA_ESQUERDA			EQU 1		; tecla na primeira coluna do teclado (tecla C)
-;TECLA_DIREITA			EQU 2		; tecla na segunda coluna do teclado (tecla D)
+
+
 
 COMANDOS				EQU	6000H			; endereço de base dos comandos do MediaCenter
 
@@ -49,21 +51,23 @@ SELECIONA_CENARIO_FRONTAL   EQU COMANDOS + 46H		; endereço do comando para sele
 TOCA_SOM					EQU COMANDOS + 5AH		; endereço do comando para tocar um som
 
 
-
 ; * Constantes - posição
 LINHA_ASTEROIDE         EQU  0      ; 1ª linha do asteroide 
-COLUNA_ASTEROIDE	    EQU  0      ; 1ª coluna do asteroide 
+COLUNA_ASTEROIDE_ESQ	EQU  0      ; 1ª coluna do asteroide
+COLUNA_ASTEROIDE_MEIO   EQU  30     ; coluna onde começar a desenhar para o asteroide ficar centralizado
 LINHA_NAVE              EQU  27     ; 1ª linha da nave 
 COLUNA_NAVE             EQU  25     ; 1ª coluna da nave 
 LINHA_SONDA             EQU  26      ; linha da sonda 
 COLUNA_SONDA            EQU  32      ; coluna da sonda 
 LINHA_PAINEL			EQU  29
 COLUNA_PAINEL			EQU  29
+
 MIN_COLUNA		        EQU  0		; número da coluna mais à esquerda que o objeto pode ocupar
-MAX_COLUNA		        EQU  63        ; número da coluna mais à direita que o objeto pode ocupar
+MAX_COLUNA		        EQU  63     ; número da coluna mais à direita que o objeto pode ocupar
 
 
 ; * Dimensões dos bonecos
+
 LARGURA_ASTEROIDE		EQU	5
 ALTURA			        EQU	5		; altura do asteroide e da nave
 LARGURA_NAVE            EQU 15
@@ -75,6 +79,13 @@ ATRASO			EQU	0005H		; (inicialmente a 400) atraso para limitar a velocidade de m
 ALCANCE_SONDA   EQU 000CH 		; alcance maximo da sonda
 
 
+;*Constantes - movimento
+ATRASO			EQU	5H		; (inicialmente a 400) atraso para limitar a velocidade de movimento do asteroide/nave
+ALCANCE_SONDA			EQU  12		; alcance maximo da sonda
+DECREMENTO              EQU  -1     ; indica o decremento da coluna/linha do asteroide/sonda
+INCREMENTO              EQU  1      ; indica o incremento da coluna/linha do asteroide/sonda
+BAIXO                   EQU  0      ; indica o incremento da coluna do asteroide ao andar para baixo
+CIMA                    EQU  0      ; indica o incremento da coluna da sonda ao andar para cima
 ; * Constantes - cores
 VERMELHO	  EQU 0FF00H ; cor do pixel: vermelho em ARGB (opaco e vermelho no máximo, verde e azul a 0)
 LARANJA       EQU 0FFA0H ; cor do pixel: laranja em ARGB (opaco e vermelho no máximo, verde a 10 e azul a 0)
@@ -147,11 +158,14 @@ IMAGEM_PAUSE       EQU 2
 ; *********************************************************************************
 	PLACE       1000H
 
+
 ; * Reserva do espaço das pilhas dos diferentes processos
+
 	STACK 100H			; espaço reservado para a pilha (200H bytes, pois são 100H words)
 SP_inicial:				; este é o endereço (1200H) com que o SP deve ser 
 						; inicializado. O 1.º end. de retorno será 
 						; armazenado em 11FEH (1200H-2)
+
 
 	STACK 100H			; 100H bytes reservados para a pilha do processo "painel_nave"
 SP_painel_nave:			; endereço inicial da pilha
@@ -162,7 +176,11 @@ SP_teclado:
     STACK 100H			; espaço reservado para a pilha do processo DISPLAY
 SP_display:    
 
+    STACK 100H          ; 100H bytes reservados para a pilha do processo "spawn_asteroide"
+SP_asteroide:           ; endereço inicial da pilha
+
 ; LOCKS dos diferentes processos e rotinas
+
 tecla_carregada:
 	LOCK 0				; LOCK para o teclado comunicar aos restantes processos que tecla detetou,
 						; uma vez por cada tecla carregada
@@ -171,6 +189,7 @@ tecla_continuo:
 	LOCK 0				; LOCK para o teclado comunicar aos restantes processos que tecla detetou,
 						; enquanto a tecla estiver carregada
 
+
 jogo_pausado:           ; LOCK para comunicar aos processos que o jogo está em pausa
     LOCK 0               
 
@@ -178,11 +197,13 @@ energia_display:        ; LOCK para bloquear o processo DISPLAY e comunicar qual
     LOCK 0              ; se o LOCK estiver a 0, a energia diminui (RELOGIO DE INTERRUPCAO)
                         ; se o LOCK estiver a 1, a energia aumenta (ASTEROIDE MINERAVEL)
                         ; se o LOCK estiver a 2, a energia diminui (SONDA)
+
 game_over:
 	LOCK 0
 
 espera_tecla_recomeçar:
 	LOCK 0
+
 
 int_painel_nave:
 	LOCK 0			    ; controla o processo da mudança de cor do painel de controlo da nave
@@ -190,25 +211,43 @@ int_painel_nave:
 display_HEX:
     WORD 0064H          ; WORD para o valor do display em hexadecimal
 
+
 estado_jogo:
 	WORD 0				; WORD para o estado do jogo (0 - em jogo, 1 - perdeu sem energia, 2 - perdeu por colisão, 3 - em pausa)
 
 nova_nave:
     WORD 0              ; WORD para o redesenhar a nave
 
- 
 
 
 
+linha_asteroide:                ; variável que guarda a linha do asteroide no momento
+    WORD LINHA_ASTEROIDE
+
+coluna_asteroide:
+    WORD COLUNA_ASTEROIDE_ESQ   ; variável que guarda a linha do asteroide no momento
+
+linha_sonda:
+    WORD LINHA_SONDA            ;variável que guarda a linha da sonda
+
+
+
+; * Tabelas dos objetos
 
 ; Tabela das rotinas de interrupção (por completar)
 tabela_rot_int:
+	WORD rot_int_0
 	WORD 0
 	WORD 0
-    WORD rot_int_2          ; rotina de atendimento da interrupção 2(energia)
-	WORD rot_int_3			; rotina de atendimento da interrupção 3(nave)
+	WORD rot_int_3			; rotina de atendimento da interrupção 3
 
-; Tabelas dos objetos 
+
+int_asteroide:
+    LOCK 0
+
+int_painel_nave:
+	LOCK 0					; controla o processo da mudança de cor do painel de controlo da nave
+
 DEF_ASTEROIDE_N_MINERAVEL:					; tabela que define o asteroide não minerável (largura, altura, pixels e sua cor)
 	WORD		 LARGURA_ASTEROIDE
     WORD        ALTURA
@@ -259,6 +298,41 @@ tabela_cores:				; Tabela que define as cores possíveis para o painel de contro
 	WORD	CINZENTO
 
 
+; * Tabelas combinações (Coluna inicial e direção em relação à coluna):
+
+inicio_esquerda_move_direita:
+    WORD    MIN_COLUNA
+    WORD    INCREMENTO 
+
+inicio_meio_move_esquerda:
+    WORD    COLUNA_ASTEROIDE_MEIO
+    WORD    DECREMENTO
+
+inicio_meio_move_baixo:
+    WORD    COLUNA_ASTEROIDE_MEIO
+    WORD    BAIXO
+
+inicio_meio_move_direita:
+    WORD    COLUNA_ASTEROIDE_MEIO
+    WORD    INCREMENTO
+
+inicio_direita_move_esquerda:
+    WORD    MAX_COLUNA
+    WORD    DECREMENTO
+
+; Tabela que será acedida para determinar a posição do asteróide a desenhar
+tabela_geral_posicao:
+    WORD inicio_esquerda_move_direita
+    WORD inicio_meio_move_esquerda
+    WORD inicio_meio_move_baixo
+    WORD inicio_meio_move_direita
+    WORD inicio_direita_move_esquerda
+;;
+
+
+
+
+
 ; *********************************************************************************
 ; * Código
 ; *********************************************************************************
@@ -274,6 +348,7 @@ inicio:
     MOV	R1, IMAGEM_INICIO			; cenário de fundo número 0
     MOV  [SELECIONA_CENARIO_FUNDO], R1	; seleciona o cenário de fundo
     
+
 
     MOV R1, TERMINADO
     MOV [estado_jogo], R1 ; iniciamos o programa no estado terminado
@@ -297,10 +372,14 @@ inicia:
     CALL proc_painel_nave
     CALL proc_display
 
+    CALL spawn_asteroide
+    CALL painel_nave
+
 
 ; **********************************************************************
 ; Processo
 ;
+
 ; TECLADO - Processo que deteta quando se carrega numa tecla e coloca o valor no LOCK
 ;		  	tecla_carregada
 ;		
@@ -310,14 +389,16 @@ inicia:
 ; **********************************************************************
 
 
+
 PROCESS SP_teclado	; indicação de que a rotina que se segue é um processo,
+
 						    ; com indicação do valor para inicializar o SP
 proc_teclado:
 	MOV  R2, TEC_LIN		; endereço do periférico das linhas
 	MOV  R3, TEC_COL		; endereço do periférico das colunas
 	MOV  R5, MASCARA		; para isolar os 4 bits de menor peso, ao ler as colunas do teclado
     MOV  R4, [estado_jogo]  ; guarda o estado do jogo
-    
+
     loop_linha:
        	MOV R1, LINHA_TECLADO ; por linha a 0001 0000 - para testar qual das linhas foi clicada
 
@@ -339,17 +420,21 @@ proc_teclado:
     	MOV	[tecla_carregada], R9	; informa quem estiver bloqueado neste LOCK que uma tecla foi carregada
     							; ( o valor escrito e a tecla carregada)
     acoes_teclado:
+
         MOV R6, TECLA_JOGO_PAUSA
         CMP R9, R6
         JZ pausa_jogo
         MOV R6, TECLA_JOGO_COMECA
+
         CMP R9, R6
         JZ novo_jogo
 
     ha_tecla:					; neste ciclo espera-se até NENHUMA tecla estar premida
 
+
     	YIELD				    ; este ciclo é potencialmente bloqueante, pelo que tem de
     						    ; ter um ponto de fuga (aqui pode comutar para outro processo)
+
 
     	MOV	[tecla_continuo], R9	; informa quem estiver bloqueado neste LOCK que uma tecla está a ser carregada
     							; (o valor escrito é a tecla premida)
@@ -362,6 +447,7 @@ proc_teclado:
         JNZ  ha_tecla			; se ainda houver uma tecla premida, espera até não haver
 
     	JMP	espera_tecla		; esta "rotina" nunca retorna porque nunca termina
+
     						    ; Se se quisesse terminar o processo, era deixar o processo chegar a um RET
 
     pausa_jogo:
@@ -429,6 +515,7 @@ proc_teclado:
         MOV R2, DEF_SONDA                   ; guarda a próxima tabela a ser desenhada         
         CALL rot_desenha_sonda              ; desenha a sonda
         
+
         JMP ha_tecla
 
 
@@ -505,13 +592,13 @@ rot_desenha_asteroide_e_nave: ; Deposita os valores dos registos abaixo no stack
     
 ; as seis intruções seguintes servem para verificar o valor de R10 de acordo com o explicado na descrição 
     CMP R10, 1          
-    JZ atualiza_posicao
+    JZ desenha_asteroide_e_nave
     
     CMP R10, 3
-    JZ atualiza_posicao
+    JZ desenha_asteroide_e_nave
     
     CMP R10, -1
-    JZ atualiza_posicao
+    JZ desenha_asteroide_e_nave
 
 ; Os blocos acima tratam os casos em que já existe um asteroide
     MOV R8, DEF_NAVE                    ; guarda o valor da memória na primeira posição da tabela que define a nave 
@@ -528,13 +615,11 @@ rot_desenha_asteroide_e_nave: ; Deposita os valores dos registos abaixo no stack
     
     posicao_inicial_asteroide:
         
-        MOV R5, LINHA_ASTEROIDE		; linha do asteroide
-        MOV R6, COLUNA_ASTEROIDE       ; coluna do asteroide
+        MOV R7, [linha_asteroide]		; linha do asteroide
+        MOV R4, [coluna_asteroide]       ; coluna do asteroide
         ADD R10, 1                      ; Diz ao registo de controlo que já existe 1 asteroide
         
-    atualiza_posicao:
-        MOV R7, R5                      ; guarda o valor global da linha do asteroide noutro registo para poder ser manipulado 
-        MOV R4, R6                      ; guarda o valor global da coluna do asteroide noutro registo para poder ser manipulado 
+
     
     desenha_asteroide_e_nave:   ; desenha o asteroide/nave/sonda(bonecos) a partir da tabela
 
@@ -662,6 +747,7 @@ rot_desenha_sonda:
     PUSH R1
     PUSH R2
     PUSH R4
+    PUSH R7
 
     ; as seis intruções seguintes servem para verificar se existe alguma sonda ou se
     ; é para apagar,de acordo com o explicado na descrição de R10
@@ -677,7 +763,9 @@ rot_desenha_sonda:
 
     posicao_sonda:
 
-        MOV  R7, LINHA_SONDA			; linha da nave
+
+        MOV  R7, [linha_sonda]			; linha da nave
+
         ADD R10, 2						; Diz à variável de controlo que após esta já rotina haverá uma sonda desenhada
     
     coluna_constante:
@@ -692,7 +780,8 @@ rot_desenha_sonda:
         JNZ fim_desenho_sonda
         MOV R10, 3						; Põe R10 a 3 de modo a poder desenhar a próxima sonda
 
-    fim_desenho_sonda:                     
+    fim_desenho_sonda:  
+    POP R7                   
     POP R4
     POP R2
     POP R1
@@ -835,9 +924,11 @@ rot_acoes_teclado:
     PUSH R2
     
 
+
     MOV R0, TECLA_JOGO_TERMINA  ; tecla para terminar o jogo
     CMP R9, R0
     JZ jogo_termina       ; procede ao termino do jogo
+
 
     MOV R0, SONDA_CIMA          ; tecla referente ao movimento da sonda para cima
     CMP R9, R0
@@ -915,6 +1006,7 @@ rot_jogo_termina:
     RET
 
 
+
 ; **********************************************************************
 ; Rotina 
 ; - indica qual a próxima posição de um determinado objeto
@@ -925,11 +1017,18 @@ rot_jogo_termina:
 ; - RETORNA: Os registos de posição atualizados (R5 e R6 ou R7 dependendo do tipo do objeto)
 ; **********************************************************************
 
+
 rot_atualiza_posicao:
     PUSH R0
+    PUSH R5
+    PUSH R6
+    PUSH R7
 
     
     MOV R0, DEF_SONDA           
+    MOV R5, [linha_asteroide]
+    MOV R6, [coluna_asteroide]
+    MOV R7, [linha_sonda]
     CMP R2, R0                          ; verifica se o objeto é uma sonda
     JNZ proxima_posicao_asteroide       ; salta se não for sonda (será asteroide)
 
@@ -944,6 +1043,9 @@ rot_atualiza_posicao:
 
     
     fim_atualiza_posicao:
+        POP R7
+        POP R6
+        POP R5
         POP R0
         RET
 
@@ -959,16 +1061,17 @@ rot_atualiza_posicao:
 ; **********************************************************************
 
 
+
 PROCESS SP_painel_nave		; indicação de que a rotina que se segue é um processo,
 							; com indicação do valor para inicializar o SP
-proc_painel_nave:
+painel_nave:
 
 	MOV R2, tabela_cores		; guarda o endereço da tabela das cores para se poder aceder às cores
 ;	MOV R3, 8				; guarda o número máximo de bits a adicionar ao endereço da tabela das cores
 	
 	MOV R0, LARGURA_PAINEL_NAVE		;guarda a largura do painel
 	MOV R1, ALTURA_PAINEL_NAVE		;guarda a altura do painel
-
+	
     posicao_painel_nave:
         
         MOV R7, LINHA_PAINEL		; linha do painel
@@ -979,16 +1082,98 @@ proc_painel_nave:
         YIELD
 
         CALL rot_desenha_pixels_linha   ; muda a primeira linha do painel
-        ADD R7, 1
+            ADD R7, 1
         CALL rot_desenha_pixels_linha   ; muda a segunda linha do painel
-        SUB R7, 1
-
+            SUB R7, 1
     verifica_pausa:                     ; verifica se o jogo está pausado
         MOV R5, [estado_jogo]           ; se estiver, bloqueia o processo
         CMP R5, PAUSA            
         JNE loop_painel
         MOV R5, [jogo_pausado]
     JMP loop_painel
+
+
+
+; **********************************************************************
+; Processo
+;
+; painel_nave - Processo que lê o relógio da nave e muda o lock int_painel_nave
+;               para que seja possível mudar as cores do painel da nave
+;		
+;       R0, R1 - largura do painel e altura do painel, respetivamente
+;		R2 - endereço da tabela das cores definida no início 
+;       R4, R7 - linha e coluna do painel, respetivamente
+; **********************************************************************
+PROCESS SP_asteroide        ; indicação de que a rotina que se segue é um processo,
+							; com indicação do valor para inicializar o SP
+    
+spawn_asteroide:
+    MOV R3, tabela_geral_posicao        ; guarda o enderço da tabela das combinações de posições possíveis
+    CALL rot_gera_aleatorio             ; recebe dois números pseudoaleatórios: R0 e R1
+    CMP R0, 0                           ; se R0 não for 0 é para fazer um não minerável senão o oposto
+    JNZ  asteroide_nao_mineravel
+    MOV R2, DEF_ASTEROIDE_MINERAVEL     ; no caso de ser minerável, guarda o endereço da sua tabela
+    JMP escolhe_tabela_particular
+
+    asteroide_nao_mineravel:
+        MOV R2, DEF_ASTEROIDE_N_MINERAVEL   ; no caso de ser não minerável, guarda o endereço da sua tabela
+
+    escolhe_tabela_particular:
+        SHL R1, 1               ; multiplica por dois (anda um bit para a direita pois queremos incrementar de 2 em 2 bytes)
+        ADD R3, R1              ; vai adicionar um certo valor par de 0 a 8 a R3 de modo a obter o endereço de uma tabela de direção
+        MOV R5, [R3]
+
+    loop_movimento:
+        YIELD
+
+        MOV R7, [linha_asteroide]
+        MOV R4, [R5]
+        ADD R5, 2
+        MOV R6, [R5]
+
+        JMP loop_movimento
+    ; Falta separar a parte do movimento e a parte do desenho dos 4 asteroides
+
+
+
+;; **********************************************************************
+;; Rotina 
+;; - gera dois números aleatórios, um entre 0 e 3, outro entre 0 e 4
+;;  
+;; - PARÂMETROS:    
+;;              R2 - Máscara de 2 bits
+;;              R4 - endereço do periférico PIN
+
+;; 
+;; - RETORNA: R0 (número entre 0 e 3) e R1 (número entre 0 e 4)
+;; **********************************************************************
+
+rot_gera_aleatorio:
+    
+    PUSH R2
+    PUSH R3
+    PUSH R4
+
+    MOV R2, MASCARA_2_BITS   ; será utilizado para isolar os 2 bits de menor peso de um valor
+    MOV R3, 5
+    MOV R4, PIN
+    MOVB R0, [R4]           ; lê os bits 4 a 7 do periférico PIN
+    SHR R0, 4                ; coloca os bits lidos antes (4 a 7) nos bits 0 a 3, de modo a ficar com um valor entre 0 e 15
+    MOV R1, R0
+
+    AND R0, R2               ; isola os 2 bits de menor peso, o que dá 4 hipóteses
+    MOD R1, R3                ; R1 = resto da divisão de R1 por 5 de modo a ficarmos com 5 hipóteses (0 a 4)
+
+fim_gera_aleatório:
+    POP R4
+    POP R3
+    POP R2
+    RET
+
+
+
+
+
 
 ;escolhe_cor_pixel:
 ;	MOV R4, tabela_cores	; guarda o enderço da tabela das cores para se poderem aceder às cores
@@ -1002,13 +1187,16 @@ proc_painel_nave:
 ;
 ;
 
-;rot_int_0:
-;	PUSH R2
-;	MOV R2, evento_int_missil
-;	MOV [R2], R1
-;	POP R2
-;	RFE
-;
+
+rot_int_0:
+	PUSH R2
+	MOV R2, int_asteroide
+	MOV [R2], R1
+	POP R2
+	RFE
+
+
+
 ;rot_int_1:
 ;	PUSH R2
 ;	MOV R2, evento_int_missil
