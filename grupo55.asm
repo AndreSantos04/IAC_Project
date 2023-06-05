@@ -80,8 +80,6 @@ ALCANCE_SONDA   EQU 000CH 		; alcance maximo da sonda
 
 
 ;*Constantes - movimento
-ATRASO			EQU	5H		; (inicialmente a 400) atraso para limitar a velocidade de movimento do asteroide/nave
-ALCANCE_SONDA			EQU  12		; alcance maximo da sonda
 DECREMENTO              EQU  -1     ; indica o decremento da coluna/linha do asteroide/sonda
 INCREMENTO              EQU  1      ; indica o incremento da coluna/linha do asteroide/sonda
 BAIXO                   EQU  0      ; indica o incremento da coluna do asteroide ao andar para baixo
@@ -204,6 +202,8 @@ game_over:
 espera_tecla_recomeçar:
 	LOCK 0
 
+int_asteroide:
+    LOCK 0
 
 int_painel_nave:
 	LOCK 0			    ; controla o processo da mudança de cor do painel de controlo da nave
@@ -238,15 +238,11 @@ linha_sonda:
 tabela_rot_int:
 	WORD rot_int_0
 	WORD 0
-	WORD 0
+    WORD rot_int_2          ; rotina de atendimento da interrupção 2(energia)
 	WORD rot_int_3			; rotina de atendimento da interrupção 3
 
 
-int_asteroide:
-    LOCK 0
 
-int_painel_nave:
-	LOCK 0					; controla o processo da mudança de cor do painel de controlo da nave
 
 DEF_ASTEROIDE_N_MINERAVEL:					; tabela que define o asteroide não minerável (largura, altura, pixels e sua cor)
 	WORD		 LARGURA_ASTEROIDE
@@ -345,7 +341,7 @@ inicio:
     
     MOV  [APAGA_AVISO], R1	; apaga o aviso de nenhum cenário selecionado (o valor de R1 não é relevante)
     MOV  [APAGA_ECRÃ], R1	; apaga todos os pixels já desenhados (o valor de R1 não é relevante)
-    MOV	R1, IMAGEM_INICIO			; cenário de fundo número 0
+    MOV	 R1, IMAGEM_INICIO			; cenário de fundo número 0
     MOV  [SELECIONA_CENARIO_FUNDO], R1	; seleciona o cenário de fundo
     
 
@@ -353,11 +349,11 @@ inicio:
     MOV R1, TERMINADO
     MOV [estado_jogo], R1 ; iniciamos o programa no estado terminado
     
+    ;EI0
     EI2
     EI3
     EI
 
-    ;MOV [estado_jogo], 0 ; Controla se o estado em que está o jogo (0 - jogo terminado, 1 - jogo a decorrer, 2 - jogo parado)
     CALL proc_teclado    ; Cria o processo teclado
 
 espera_inicio_jogo:
@@ -368,13 +364,11 @@ espera_inicio_jogo:
 
 inicia:
 
+
 ;;;;;;; DAR OS CALLS AOS PROCESSOS ;;;;;;;;
     CALL proc_painel_nave
     CALL proc_display
-
-    CALL spawn_asteroide
-    CALL painel_nave
-
+    CALL proc_spawn_asteroide
 
 ; **********************************************************************
 ; Processo
@@ -434,7 +428,6 @@ proc_teclado:
 
     	YIELD				    ; este ciclo é potencialmente bloqueante, pelo que tem de
     						    ; ter um ponto de fuga (aqui pode comutar para outro processo)
-
 
     	MOV	[tecla_continuo], R9	; informa quem estiver bloqueado neste LOCK que uma tecla está a ser carregada
     							; (o valor escrito é a tecla premida)
@@ -1064,7 +1057,7 @@ rot_atualiza_posicao:
 
 PROCESS SP_painel_nave		; indicação de que a rotina que se segue é um processo,
 							; com indicação do valor para inicializar o SP
-painel_nave:
+proc_painel_nave:
 
 	MOV R2, tabela_cores		; guarda o endereço da tabela das cores para se poder aceder às cores
 ;	MOV R3, 8				; guarda o número máximo de bits a adicionar ao endereço da tabela das cores
@@ -1107,7 +1100,7 @@ painel_nave:
 PROCESS SP_asteroide        ; indicação de que a rotina que se segue é um processo,
 							; com indicação do valor para inicializar o SP
     
-spawn_asteroide:
+proc_spawn_asteroide:
     MOV R3, tabela_geral_posicao        ; guarda o enderço da tabela das combinações de posições possíveis
     CALL rot_gera_aleatorio             ; recebe dois números pseudoaleatórios: R0 e R1
     CMP R0, 0                           ; se R0 não for 0 é para fazer um não minerável senão o oposto
@@ -1188,12 +1181,12 @@ fim_gera_aleatório:
 ;
 
 
-rot_int_0:
-	PUSH R2
-	MOV R2, int_asteroide
-	MOV [R2], R1
-	POP R2
-	RFE
+;rot_int_0:
+;	PUSH R2
+;	MOV R2, int_asteroide
+;	MOV [R2], R1
+;	POP R2
+;	RFE
 
 
 
