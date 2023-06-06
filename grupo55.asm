@@ -1186,7 +1186,7 @@ proc_spawn_asteroide:
         JMP loop_movimento
     
 
-        CMP R5, JOGO            ; verifica se o jogo terminou
+        CMP R5, JOGO            ; verifica se o jogo terminou e bloqueia o 
         JZ loop_painel
         CMP R5, PAUSA
         JZ loop_painel
@@ -1235,23 +1235,23 @@ disparo_frente:                         ; verifica se já existe uma sonda na di
     MOV R0, R11 ; Alcance da sonda frente
     MOV R1, [ha_sonda_frente]
     CMP R1, 1
-    JZ gera_sonda_frente
+    JNZ sonda                           ; se já existir uma sonda, não faz nada
 
 gera_sonda_frente:
     ;;;;Cria sonda frente
-    MOV [energia_display], R10
+    MOV [energia_display], R10          ; desbloqueia o processo de atualização do display de energia, para diminuir a energia por cada sonda criada
     JMP sonda
 
 disparo_esquerda:                       ; verifica se já existe uma sonda na direção pretendida
                                         ; se nao existir, cria uma nova sonda
-    MOV R0, R11 ; Alcance da sonda eequerda
+    MOV R0, R11 ; Alcance da sonda esquerda
     MOV R1, [ha_sonda_esquerda]
     CMP R1, 1
-    JZ gera_sonda_esquerda
+    JNZ sonda                           ; se já existir uma sonda, não faz nada
 
 gera_sonda_esquerda:
     ;;;;Cria sonda esquerda
-    MOV [energia_display], R10
+    MOV [energia_display], R10          ; desbloqueia o processo de atualização do display de energia, para diminuir a energia por cada sonda criada
     JMP sonda
 
 disparo_direita:                    ; verifica se já existe uma sonda na direção pretendida
@@ -1259,11 +1259,11 @@ disparo_direita:                    ; verifica se já existe uma sonda na direç
     MOV R0, R11 ; Alcance da sonda direita
     MOV R1, [ha_sonda_direita]
     CMP R1, 1
-    JZ gera_sonda_direita
+    JNZ sonda                       ; se já existir uma sonda, não faz nada
 
 gera_sonda_direita:
     ;;;;Cria sonda direita
-    MOV [energia_display], R10
+    MOV [energia_display], R10          ; desbloqueia o processo de atualização do display de energia, para diminuir a energia por cada sonda criada
     JMP sonda
 
 movimenta_sondas:                   ; movimenta as sondas existentes
@@ -1272,11 +1272,11 @@ movimenta_sondas:                   ; movimenta as sondas existentes
 
     JMP sonda
 pause_missil:
-    MOV R0, [jogo_pausado]
+    MOV R0, [jogo_pausado]          ; bloqueia o processo enquanto o jogo esta pausado
     JMP sonda
 
 game_over_missil:
-    MOV R0, [game_over]
+    MOV R0, [game_over]             ; bloqueia o processo quando o jogo termina
     JMP sonda
 
 ;; **********************************************************************
