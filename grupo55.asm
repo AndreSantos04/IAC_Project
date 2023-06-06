@@ -97,14 +97,14 @@ AMARELO		  EQU 0FFF0H ; cor do pixel: amarelo em ARGB (opaco, vermelho e verde n
 
 ; * Constantes - teclado/display
 
-INCREMENTO_DISPLAY      EQU 000BH    ; tecla que incrementa o valor do display
-DECREMENTO_DISPLAY      EQU 000FH    ; tecla que decremento o valor do display
-SONDA_CIMA              EQU 000AH    ; tecla que move a sonda para cima
-ASTEROIDE_BAIXO         EQU 0002H    ; tecla que move o asteroide para baixo
-
 TECLA_JOGO_COMECA       EQU 000CH    ; tecla que começa o jogo
 TECLA_JOGO_PAUSA        EQU 000DH    ; tecla que pausa o jogo
 TECLA_JOGO_TERMINA      EQU 000EH    ; tecla que termina o jogo
+TECLA_DISPARO_FRENTE    EQU 0001H    ; tecla que dispara para a frente
+TECLA_DISPARO_ESQUERDA  EQU 0000H    ; tecla que dispara para a esquerda
+TECLA_DISPARO_DIREITA   EQU 0002H    ; tecla que dispara para a direita
+
+MOVIMENTACAO_SONDAS     EQU 4        ; valor que indica que ao processo que deve mover as sondas
 
 JOGO                    EQU 0    ; estado do jogo: jogo
 SEM_ENERGIA             EQU 1    ; estado do jogo: perdeu sem energia
@@ -194,7 +194,6 @@ tecla_continuo:
 	LOCK 0				; LOCK para o teclado comunicar aos restantes processos que tecla detetou,
 						; enquanto a tecla estiver carregada
 
-
 jogo_pausado:           ; LOCK para comunicar aos processos que o jogo está em pausa
     LOCK 0               
 
@@ -202,7 +201,6 @@ energia_display:        ; LOCK para bloquear o processo DISPLAY e comunicar qual
     LOCK 0              ; se o LOCK estiver a 0, a energia diminui (RELOGIO DE INTERRUPCAO)
                         ; se o LOCK estiver a 1, a energia aumenta (ASTEROIDE MINERAVEL)
                         ; se o LOCK estiver a 2, a energia diminui (SONDA)
-
 
 espera_tecla_recomeçar:
 	LOCK 0
@@ -216,9 +214,13 @@ game_over:              ; LOCK para comunicar aos processos que o jogo terminou
 int_painel_nave:
 	LOCK 0			    ; controla o processo da mudança de cor do painel de controlo da nave
 
+movimenta_gera_sonda:
+    LOCK 0              ; controla o processo de movimentação e geração da sonda
+                        ; se o LOCK estiver a 0,1,2 dispara uma sonda na posição correspondente
+                        ; 0 - esquerda; 1 - frente; 2 - direita
+                        ; se estiver a 4 movimenta as sondas disparadas
 display_HEX:
     WORD 0064H          ; WORD para o valor do display em hexadecimal
-
 
 estado_jogo:
 	WORD 0				; WORD para o estado do jogo (0 - em jogo, 1 - perdeu sem energia, 2 - perdeu por colisão, 3 - em pausa)
@@ -355,7 +357,6 @@ inicio:
     MOV  [SELECIONA_CENARIO_FUNDO], R1	; seleciona o cenário de fundo
     
 
-
     MOV R1, TERMINADO
     MOV [estado_jogo], R1 ; iniciamos o programa no estado terminado
     
@@ -367,23 +368,23 @@ inicio:
     CALL proc_teclado    ; Cria o processo teclado
 
 espera_inicio_jogo:
-    MOV R1, [tecla_carregada] ; Verifica se alguma tecla foi carregada
+    MOV R1, [tecla_carregada] ; Verifica se alguma tecla foi carregada, bloqueia até a processa voltar a carregar
     MOV R2, TECLA_JOGO_COMECA
-    CMP R1, R2
-    JNZ espera_inicio_jogo
-    CALL rot_inicia_jogo
+    CMP R1, R2                ; Verifica se a tecla carregado foi a de inicio de jogo
+    JNZ espera_inicio_jogo    ; Se não foi, volta a verificar
+    CALL rot_inicia_jogo      ; Se sim, inicia o jogo
 
 
 inicia:
 
-
 ;;;;;;; DAR OS CALLS AOS PROCESSOS ;;;;;;;;
     CALL proc_painel_nave
     CALL proc_display
-    CALL proc_spawn_asteroide
+    ;CALL proc_spawn_asteroide
     CALL proc_fim_jogo
     CALL proc_pause
     CALL proc_fim_jogo
+
 
 ; **********************************************************************
 ; Processo
@@ -396,8 +397,6 @@ inicia:
 ;		R3 - endereço periferico das colunas
 ;		R5 - mascara
 ; **********************************************************************
-
-
 
 PROCESS SP_teclado	; indicação de que a rotina que se segue é um processo,
 
@@ -429,24 +428,11 @@ proc_teclado:
         MOV R9, [tecla]
     	MOV	[tecla_carregada], R9	; informa quem estiver bloqueado neste LOCK que uma tecla foi carregada
     							    ; ( o valor escrito e a tecla carregada)
-    ;acoes_teclado:
-    ;    
-    ;    MOV  R4, [estado_jogo]  ; guarda o estado do jogo
-    ;  
-    ;    MOV R6, TECLA_JOGO_PAUSA
-    ;    CMP R9, R6                  ; Verifica se carregou na tecla de pausa (D)
-    ;    JZ pausa_jogo
-    ;    ;MOV R6, TECLA_JOGO_COMECA
-    ;    ;CMP R9, R6                  ; Verifica se carregou na tecla de novo jogo (C)
-    ;    ;JZ novo_jogo
-;
-;
-;
-;
-    ;    ;MOV R6, TECLA_JOGO_TERMINA
-    ;    ;CMP R9, R6                  ; Verifica se carregou na tecla de sair (E)
-    ;    ;JZ sair_jogo
-;
+
+        CMP R9, TECLA_DISPARO_DIREITA
+        JGT ha_tecla
+        MOV [movimenta_gera_sonda], R9
+        
     ha_tecla:					; neste ciclo espera-se até NENHUMA tecla estar premida
         
     	YIELD				    ; este ciclo é potencialmente bloqueante, pelo que tem de
@@ -465,103 +451,6 @@ proc_teclado:
     	JMP	espera_tecla		; esta "rotina" nunca retorna porque nunca termina
 
     						    ; Se se quisesse terminar o processo, era deixar o processo chegar a um RET
-
-PROCESS SP_pause
-
-proc_pause:
-    MOV R4, [estado_jogo]  ; guarda o estado do jogo
-    MOV R0, [tecla_carregada]
-    MOV R1, TECLA_JOGO_PAUSA
-
-    CMP R0, R1
-    JZ pausa_jogo
-    JMP proc_pause
-    pausa_jogo:
-        
-        CMP R4, PAUSA                           ; se o jogo estiver pausado
-        JZ  unpause                             ; volta o jogo
-
-        CMP R4, JOGO                            ; se o jogo não estiver a decorrer nem em pausa
-        JNZ proc_pause                            ; nao faz nada
-
-        MOV R4, PAUSA                           ; se o jogo estiver a decorrer 
-        MOV [estado_jogo], R4                   ; coloca o jogo em pausa
-
-        ;;;;;;;;;;;;;;;;;;;;;; COLOCAR COMO OVERLAY ;;;;;;;;;;;;;;;;;;;;;;;;
-
-        MOV R7, IMAGEM_PAUSE                       
-        MOV [SELECIONA_CENARIO_FRONTAL], R7       ; coloca o ecrã de pausa
-
-        JMP proc_pause
-
-    unpause:
-       
-       MOV R4, JOGO                            ; retoma o jogo   
-       MOV [estado_jogo], R4
-               
-       MOV [APAGA_CENARIO_FRONTAL], R4         ; volta ao ecrã de jogo 
-       MOV [jogo_pausado], R4
-       
-       JMP proc_pause
-
-    ;novo_jogo:                                  ; começa um novo jogo
-    ;                                            ; caso o anterior tenha terminado
-    ;    CMP R4, SEM_ENERGIA
-    ;    JZ comeca_novo_jogo
-    ;    CMP R4, COLISAO
-    ;    JZ comeca_novo_jogo
-    ;    CMP R4, TERMINADO
-    ;    JZ comeca_novo_jogo
-    ;    JMP ha_tecla
-;
-    ;comeca_novo_jogo:
-;
-    ;    MOV R4, JOGO                        ; coloca o estado do jogo em JOGO
-    ;    MOV [estado_jogo], R4
-;
-    ;    MOV R4, IMAGEM_JOGO                        
-    ;    MOV [SELECIONA_CENARIO_FUNDO], R4   ; volta ao ecrã de jogo 
-    ;    MOV [APAGA_CENARIO_FRONTAL], R4     
-    ;    
-    ;    MOV R4, VALOR_INICIAL_DISPLAY_HEX
-    ;    MOV [display_HEX], R4              ; guarda o valor inicial do display em hexadecimal
-;
-    ;    MOV R4, VALOR_INICIAL_DISPLAY            
-    ;    MOV [DISPLAYS], R4                  ; inicializa o display com o valor inicial eM decimal
-;
-;
-    ;    MOV R2, DEF_SONDA                   ; guarda a próxima tabela a ser desenhada         
-    ;    CALL rot_desenha_sonda              ; desenha a sonda
-    ;    MOV R2, DEF_NAVE                    ; Inicializa o registo 2 que vai indicar que boneco desenhar
-    ;    CALL rot_desenha_asteroide_e_nave   ; desenha a nave
-    ;    MOV R2, DEF_ASTEROIDE_N_MINERAVEL   ; guarda qual a próxima tabela a ser desenhada 
-    ;    CALL rot_desenha_asteroide_e_nave   ; desenha o asteroide se ainda não estiver desenhado
-;
-    ;    MOV [jogo_pausado], R4
-    ;    MOV [game_over], R4
-;
-;
-    ;    JMP proc_teclado
-    
-;    sair_jogo:
-;
-;       CMP R4, JOGO
-;        JZ sai_jogo
-;        CMP R4, PAUSA
-;        JZ sai_jogo
-;        JMP ha_tecla
-;    
-;    sai_jogo:
-;
-;       MOV R4, TERMINADO
-;        MOV [estado_jogo], R4
-;
-;       MOV R4, IMAGEM_TERMINADO
-;        MOV [SELECIONA_CENARIO_FRONTAL], R4
-;
-;       JMP ha_tecla
-
-
 
 ; **********************************************************************
 ; Rotina
@@ -620,6 +509,62 @@ rot_converte_numero:
 
 
 
+; **********************************************************************
+; Processo
+;
+;
+; Pausar jogo - Processo que coloca ou retira o jogo da pausa
+;               caso o jogador carrega na tecla de pause (D)
+;		
+; **********************************************************************
+PROCESS SP_pause
+
+proc_pause:
+    MOV R4, [estado_jogo]     ; guarda o estado do jogo
+    MOV R0, [tecla_carregada] ; bloqueia o processo até uma tecla ser carregada
+    MOV R1, TECLA_JOGO_PAUSA
+
+    CMP R0, R1                ; verifica se a tecla carregada e a tecla de pausa
+    JZ pausa_jogo
+    JMP proc_pause
+    pausa_jogo:
+        
+        CMP R4, PAUSA                           ; se o jogo estiver pausado
+        JZ  unpause                             ; volta o jogo
+
+        CMP R4, JOGO                            ; se o jogo não estiver a decorrer nem em pausa
+        JNZ proc_pause                            ; nao faz nada
+
+        MOV R4, PAUSA                           ; se o jogo estiver a decorrer 
+        MOV [estado_jogo], R4                   ; coloca o jogo em pausa
+
+
+        MOV R7, IMAGEM_PAUSE                       
+        MOV [SELECIONA_CENARIO_FRONTAL], R7       ; coloca o ecrã de pausa
+
+        JMP proc_pause
+
+    unpause:
+       
+       MOV R4, JOGO                            ; retoma o jogo   
+       MOV [estado_jogo], R4
+               
+       MOV [APAGA_CENARIO_FRONTAL], R4         ; volta ao ecrã de jogo 
+       MOV [jogo_pausado], R4
+       
+       JMP proc_pause
+
+
+; **********************************************************************
+; Processo
+;
+;
+; Fim de jogo - Processo que deteta se o jogo acabou: por colisao, falta de energia
+;               ou se o utilizador carregou na tecla de sair
+;		
+; **********************************************************************
+
+
 PROCESS SP_game_over
 
 proc_fim_jogo:
@@ -631,100 +576,108 @@ proc_fim_jogo:
     CMP R4, PAUSA             ; verifica se o utilizador carregou na tecla de sair (E)
     JZ verifica_tecla
 
-    CMP R4, SEM_ENERGIA
+    CMP R4, SEM_ENERGIA       ; verifica se o jogo acabou por falta de energia
     JZ perdeu_sem_energia
 
-    CMP R4, COLISAO
+    CMP R4, COLISAO           ; verifica se o jogo acabou por colisao
     JZ perdeu_colisao
 
-    CMP R4, TERMINADO
-    JZ verifica_recomeca_jogo
-    JMP proc_fim_jogo         ; se o jogo não estiver TERMINADO não faz nada
+    CMP R4, TERMINADO         ; verifica se o jogo já acabou
+    JZ verifica_recomeca_jogo ; espera até carregar na tecla de reinciiar o jogo (C)
+    JMP proc_fim_jogo         
 
 perdeu_sem_energia:
 
-    MOV R4, IMAGEM_SEMENERGIA           ; Caso tehna perdido por falta de energia
-    MOV [SELECIONA_CENARIO_FUNDO], R4
-    ;;;;;SOM
-    JMP verifica_recomeca_jogo
+    MOV R4, IMAGEM_SEMENERGIA           ; Caso tenha perdido por falta de energia
+    MOV [APAGA_ECRÃ], R4
+    MOV [SELECIONA_CENARIO_FUNDO], R4   ; Muda o fundo do ecrã e toca o som especifico
+    ;;;;;SOM    
+    JMP verifica_recomeca_jogo          ; espera até carregar na tecla de reiniciar o jogo (C)
 
 perdeu_colisao:
 
     MOV R4, IMAGEM_COLISAO              ; Caso tenha perdido por uma colisao com a nave
-    MOV [SELECIONA_CENARIO_FUNDO], R4
+    MOV [APAGA_ECRÃ], R4
+    MOV [SELECIONA_CENARIO_FUNDO], R4   ; Muda o fundo do ecrã e toca o som especifico
     ;;;;;SOM
-    JMP verifica_recomeca_jogo
+    JMP verifica_recomeca_jogo          ; espera até carregar na tecla de reiniciar o jogo (C)
     
 verifica_tecla:
 
     MOV R0, TECLA_JOGO_TERMINA
-    MOV R4, [tecla]
-    CMP R4, R0                  ; Verifica se carregou na tecla de sair (E)
-    JZ termina_jogo
-    JMP proc_fim_jogo
+    MOV R4, [tecla]             ; Verifica se carregou na tecla de sair (E) 
+    CMP R4, R0                  ; enquanto o jogo estava a decorrer ou em pausa
+    JZ termina_jogo             ; Caso tenha saido do jogo
+    JMP proc_fim_jogo           ; Caso não tenha clicado na tecla de sair não faz nada
 
-termina_jogo:                   ;Caso tenha saido do jogo
+termina_jogo:                   ;Caso tenha saido do jogo ao clicar na tecla de sair (E)
     
     MOV R4, TERMINADO
-    MOV [estado_jogo], R4
+    MOV [estado_jogo], R4       ; Muda o estado do jogo para terminado
 
-    MOV R4, IMAGEM_TERMINADO
+    MOV R4, IMAGEM_TERMINADO    ; Muda o fundo do ecrã e toca o som especifico    
     MOV [SELECIONA_CENARIO_FRONTAL], R4
-    JMP verifica_recomeca_jogo
+    ;;;;;SOM
+    JMP verifica_recomeca_jogo  ; espera até carregar na tecla de reiniciar o jogo (C)
 
 verifica_recomeca_jogo:
-    YIELD
-
+                           ; é um processo bloqueante neste ponto até 
+                                ; carregar na tecla de reiniciar o jogo (C)
     MOV R0, TECLA_JOGO_COMECA
-    MOV R4, [tecla]
+    MOV R4, [tecla_carregada]
     CMP R4, R0                  ; Verifica se carregou na tecla de comecar (C)
-    JZ recomeca_jogo
-    JMP verifica_recomeca_jogo
+    JZ recomeca_jogo            ; Se carregou, recomeca o jogo
+    JMP verifica_recomeca_jogo  ; Se não carregou, continua a verificar até se carregar
 
 recomeca_jogo:
 
-    CALL rot_inicia_jogo
+    CALL rot_inicia_jogo        ; Recomeca o jogo
 
     JMP proc_fim_jogo
 
 
-
+; ************************************************************************************
+; Rotina Inciia Jogo
+; inicia o jogo, alterando o ecrã e o estado do jogo, desenha a nave, reinicia o valor do display
+; toca o som de inicio de jogo e desblqueia os processos essenciais ao jogo
+;
+;
+; Nao recebe nem devolve nenhum registo
+; ************************************************************************************
 rot_inicia_jogo:
-    PUSH R0
-    PUSH R1
+
     PUSH R2
-    PUSH R3
     PUSH R4
 
     MOV R4, JOGO
-    MOV [estado_jogo], R4
+    MOV [estado_jogo], R4              ; muda o estado do jogo para JOGO
     
-    MOV R4, IMAGEM_JOGO
-    MOV [SELECIONA_CENARIO_FUNDO], R4
+    MOV R4, IMAGEM_JOGO                ; muda o fundo do ecrã e toca o som especifico
+    MOV [APAGA_ECRÃ], R4
     MOV [APAGA_CENARIO_FRONTAL], R4
+    MOV [SELECIONA_CENARIO_FUNDO], R4
+    ;;;;;SOM
 
     MOV R4, VALOR_INICIAL_DISPLAY_HEX
     MOV [display_HEX], R4              ; guarda o valor inicial do display em hexadecimal
 
     MOV R4, VALOR_INICIAL_DISPLAY            
-    MOV [DISPLAYS], R4                  ; inicializa o display com o valor inicial eM decimal
+    MOV [DISPLAYS], R4                  ; inicializa o display com o valor inicial em decimal
 
 
-    MOV R2, DEF_SONDA                   ; guarda a próxima tabela a ser desenhada         
-    CALL rot_desenha_sonda              ; desenha a sonda
+    ;MOV R2, DEF_SONDA                   ; guarda a próxima tabela a ser desenhada         
+    ;CALL rot_desenha_sonda              ; desenha a sonda
     MOV R2, DEF_NAVE                    ; Inicializa o registo 2 que vai indicar que boneco desenhar
     CALL rot_desenha_asteroide_e_nave   ; desenha a nave
     MOV R2, DEF_ASTEROIDE_N_MINERAVEL   ; guarda qual a próxima tabela a ser desenhada 
     CALL rot_desenha_asteroide_e_nave   ; desenha o asteroide se ainda não estiver desenhado
 
-    MOV [jogo_pausado], R4
+    MOV [jogo_pausado], R4              ; desbloqueia os processos essenciais ao jogo
     MOV [game_over], R4
 
     POP R4
-    POP R3
     POP R2
-    POP R1
-    POP R0
+
     RET
 
 ; ************************************************************************************
@@ -1218,6 +1171,7 @@ proc_spawn_asteroide:
     loop_movimento:
         YIELD
 
+
         MOV R7, [linha_asteroide]
         MOV R4, [R5]
         ADD R5, 2
@@ -1242,6 +1196,80 @@ proc_spawn_asteroide:
     ; Falta separar a parte do movimento e a parte do desenho dos 4 asteroides
 
 
+PROCESS SP_sonda
+
+sonda:
+    MOV R4, [estado_jogo]
+    CMP R4, PAUSA
+    JZ pause_sonda
+    CMP R4, SEM_ENERGIA
+    JZ game_over_sonda
+    CMP R4, COLISAO
+    JZ game_over_sonda
+    CMP R4, TERMINADO
+    JZ game_over_sonda
+
+    MOV R11, ALCANCE_SONDA
+    MOV R10, DISPLAY_ENERGIA_SONDA
+
+    MOV R4, [movimenta_gera_sonda]
+    MOV R5, TECLA_DISPARO_FRENTE
+    CMP R4, R5
+    JZ disparo_frente
+    
+    MOV R5, TECLA_DISPARO_ESQUERDA
+    CMP R4, R5
+    JZ disparo_esquerda
+    
+    MOV R5, TECLA_DISPARO_DIREITA
+    CMP R4, R5
+    JZ disparo_direita
+
+    JMP movimenta_sondas
+disparo_frente:
+    MOV R0, R11 ; Alcance da sonda frente
+    MOV R1, [ha_sonda_frente]
+    CMP R1, 1
+    JZ gera_sonda_frente
+
+gera_sonda_frente:
+    ;;;;Cria sonda frente
+    MOV [energia_display], R10
+    JMP sonda
+
+disparo_esquerda:
+    MOV R0, R11 ; Alcance da sonda eequerda
+    MOV R1, [ha_sonda_esquerda]
+    CMP R1, 1
+    JZ gera_sonda_esquerda
+
+gera_sonda_esquerda:
+    ;;;;Cria sonda esquerda
+    MOV [energia_display], R10
+    JMP sonda
+
+disparo_direita:
+    MOV R0, R11 ; Alcance da sonda direita
+    MOV R1, [ha_sonda_direita]
+    CMP R1, 1
+    JZ gera_sonda_direita
+
+gera_sonda_direita:
+    ;;;;Cria sonda direita
+    MOV [energia_display], R10
+    JMP sonda
+movimenta_sondas:
+    ;;;;Movimenta sondas
+    MOV R0, [int_sonda]  ;;;;;;LOCK
+
+    JMP sonda
+pause_missil:
+    MOV R0, [jogo_pausado]
+    JMP sonda
+
+game_over_missil:
+    MOV R0, [game_over]
+    JMP sonda
 
 ;; **********************************************************************
 ;; Rotina 
@@ -1278,10 +1306,6 @@ fim_gera_aleatório:
     RET
 
 
-
-
-
-
 ;escolhe_cor_pixel:
 ;	MOV R4, tabela_cores	; guarda o enderço da tabela das cores para se poderem aceder às cores
 ;	CMP R5, R3				; se R5 for menor que 8, poderá ser adicionado ao endereço da tabela das cores para obter uma cor
@@ -1304,13 +1328,14 @@ fim_gera_aleatório:
 
 
 
-;rot_int_1:
-;	PUSH R2
-;	MOV R2, evento_int_missil
-;	MOV [R2], R1
-;	POP R2
-;	RFE
-;
+rot_int_1:
+	PUSH R0
+    MOV R0, MOVIMENTACAO_SONDAS
+	MOV [movimenta_gera_sonda], R0
+	POP R0
+	RFE
+
+
  rot_int_2:                 ; Rotina que trata a interrupção 2
  	PUSH R0                 ; Desbloqueia o processo display para diminuir a energia da nave
  	MOV R0, DISPLAY_ENERGIA_INT
