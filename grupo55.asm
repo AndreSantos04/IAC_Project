@@ -432,7 +432,7 @@ proc_teclado:
         CMP R9, TECLA_DISPARO_DIREITA
         JGT ha_tecla
         MOV [movimenta_gera_sonda], R9
-        
+
     ha_tecla:					; neste ciclo espera-se até NENHUMA tecla estar premida
         
     	YIELD				    ; este ciclo é potencialmente bloqueante, pelo que tem de
@@ -1199,11 +1199,14 @@ proc_spawn_asteroide:
 PROCESS SP_sonda
 
 sonda:
-    MOV R4, [estado_jogo]
-    CMP R4, PAUSA
+
+    MOV R0, [movimenta_gera_sonda]     ; desbloqueia o processo
+    
+    MOV R4, [estado_jogo]    ; verifica o estado do jogo
+    CMP R4, PAUSA            ; se estiver pausado, bloqueia o processo
     JZ pause_sonda
-    CMP R4, SEM_ENERGIA
-    JZ game_over_sonda
+    CMP R4, SEM_ENERGIA      ; se estiver terminado ou peridido (colisao/sem energia)
+    JZ game_over_sonda       ; bloqueia o processo
     CMP R4, COLISAO
     JZ game_over_sonda
     CMP R4, TERMINADO
@@ -1212,21 +1215,23 @@ sonda:
     MOV R11, ALCANCE_SONDA
     MOV R10, DISPLAY_ENERGIA_SONDA
 
-    MOV R4, [movimenta_gera_sonda]
-    MOV R5, TECLA_DISPARO_FRENTE
-    CMP R4, R5
-    JZ disparo_frente
-    
+                                        ; verifica se é para movimentar ou gerar sonda
+    MOV R5, TECLA_DISPARO_FRENTE        ; se o processo foi desbloqueado por uma tecla de disparo
+    CMP R0, R5                          ; verifica qual foi a tecla
+    JZ disparo_frente                   ; e verifica se está em condicoes de disparar
+                                        ; ou seja criar uma nova sonda na respetiva direção
     MOV R5, TECLA_DISPARO_ESQUERDA
-    CMP R4, R5
+    CMP R0, R5
     JZ disparo_esquerda
     
     MOV R5, TECLA_DISPARO_DIREITA
-    CMP R4, R5
+    CMP R0, R5
     JZ disparo_direita
 
-    JMP movimenta_sondas
-disparo_frente:
+    JMP movimenta_sondas                ; se não for para disparar, é para movimentar as sondas
+
+disparo_frente:                         ; verifica se já existe uma sonda na direção pretendida
+                                        ; se nao existir, cria uma nova sonda
     MOV R0, R11 ; Alcance da sonda frente
     MOV R1, [ha_sonda_frente]
     CMP R1, 1
@@ -1237,7 +1242,8 @@ gera_sonda_frente:
     MOV [energia_display], R10
     JMP sonda
 
-disparo_esquerda:
+disparo_esquerda:                       ; verifica se já existe uma sonda na direção pretendida
+                                        ; se nao existir, cria uma nova sonda
     MOV R0, R11 ; Alcance da sonda eequerda
     MOV R1, [ha_sonda_esquerda]
     CMP R1, 1
@@ -1248,7 +1254,8 @@ gera_sonda_esquerda:
     MOV [energia_display], R10
     JMP sonda
 
-disparo_direita:
+disparo_direita:                    ; verifica se já existe uma sonda na direção pretendida
+                                    ; se nao existir, cria uma nova sonda
     MOV R0, R11 ; Alcance da sonda direita
     MOV R1, [ha_sonda_direita]
     CMP R1, 1
@@ -1258,7 +1265,8 @@ gera_sonda_direita:
     ;;;;Cria sonda direita
     MOV [energia_display], R10
     JMP sonda
-movimenta_sondas:
+
+movimenta_sondas:                   ; movimenta as sondas existentes
     ;;;;Movimenta sondas
     MOV R0, [int_sonda]  ;;;;;;LOCK
 
