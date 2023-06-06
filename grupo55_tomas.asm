@@ -249,51 +249,56 @@ posicao_asteroide_0:
 
     WORD 0          ; variável que guarda a linha do asteroide no momento
     WORD 0          ; variável que guarda a coluna do asteroide no momento
+    WORD 0          ; variável que guarda o incremento/decremento para o movimento
 
 posicao_asteroide_2:
 
     WORD 0          ; variável que guarda a linha do asteroide no momento
     WORD 0          ; variável que guarda a coluna do asteroide no momento
+    WORD 0
 
 posicao_asteroide_4:
 
     WORD 0          ; variável que guarda a linha do asteroide no momento
     WORD 0          ; variável que guarda a coluna do asteroide no momento
+    WORD 0
 
 posicao_asteroide_6:
 
     WORD 0          ; variável que guarda a linha do asteroide no momento
     WORD 0          ; variável que guarda a coluna do asteroide no momento
+    WORD 0
 
 ; * tabelas de controlo de cada asteroide 
 ; têm nomes pares para cada um dos seus números poder corresponder a um 
 ; incremento de 0 ou mais WORDS na tabela de controlo geral dos asteroides.
 ; a descrição da primeira tabela aplica-se às restantes
 controlo_asteroide_0:
-    WORD 0                  ; variável do 1º asteroide que indica: se já existe asteroide (1) 
+    WORD 0                  ; estado do asteroide: já existe asteroide (1) 
                             ; ou não (0), ou se é para apagar o asteroide (-1) 
     WORD posicao_asteroide_0    ; posição do 1º asteroide (asteroide_0)
     WORD 0                  ; tipo de tabela do asteroide (irá depois ser alterada para minerável ou não)
-    WORD 0                  ; tabela da posição inicial e do incremento
+   
 controlo_asteroide_2:
     WORD 0                  
     WORD posicao_asteroide_2
     WORD 0
-    WORD 0
+
 
 controlo_asteroide_4:
     WORD 0                  
     WORD posicao_asteroide_4
     WORD 0
-    WORD 0
+
 
 controlo_asteroide_6:
     WORD 0                  
     WORD posicao_asteroide_6
     WORD 0
 
+
 ; * tabela de controlo de todos os asteroides
-controlo_asteroides:
+controlo_asteroides:        
     WORD controlo_asteroide_0
     WORD controlo_asteroide_2
     WORD controlo_asteroide_4
@@ -578,8 +583,8 @@ rot_converte_numero:
 ;;
 ;; PARÂMETROS:  R2 - tipo da tabela (nave, asteroide não minerável, asteroide 
 ;;              minerável ou explosão de asteroide), a sonda é tratada noutra rotina
-;;              R5 - linha do primeiro píxel do asteroide
-;;              R6 - coluna do primeiro píxel do asteroide
+;;              R7 - linha do primeiro píxel do asteroide
+;;              R4 - coluna do primeiro píxel do asteroide
 
 ;;
 ;; RETORNA: R5 e R6 no caso de se desenhar um asteroide - linha e coluna respetivamente
@@ -596,6 +601,8 @@ rot_desenha_asteroide_e_nave: ; Deposita os valores dos registos abaixo no stack
     PUSH R6
     PUSH R7
     PUSH R8
+    PUSH R10
+    PUSH R11
     
 ; as seis intruções seguintes servem para verificar o valor de R10 de acordo com o explicado na descrição 
 ;    CMP R10, 1          
@@ -610,12 +617,17 @@ rot_desenha_asteroide_e_nave: ; Deposita os valores dos registos abaixo no stack
 ; Os blocos acima tratam os casos em que já existe um asteroide
     MOV R8, DEF_NAVE                    ; guarda o valor da memória na primeira posição da tabela que define a nave 
     CMP R2, R8                          ; verifica se foi pedido para desenhar uma nave
-    JNZ desenha_asteroide_e_nave       ; se não foi pedida a nave então foi um asteroide
+    JNZ obtem_estado_asteroide       ; se não foi pedida a nave então foi um asteroide
     
     posicao_inicial_nave:
         MOV  R7, LINHA_NAVE			    ; linha da nave
         MOV  R4, COLUNA_NAVE	        ; coluna da nave 
+        JMP desenha_asteroide_e_nave
     
+    obtem_estado_asteroide:         ; obtém o estado do asteroide através da sua tabela de controlo
+        MOV R11, [R9]               ; guarda o valor da tabela que contém a variável de estado
+        MOV R10, [R11]              ; obtém o estado (-1) se for para apagar ou 1 ou 0 se for para desenhar
+        
     desenha_asteroide_e_nave:   ; desenha o asteroide/nave/sonda(bonecos) a partir da tabela
 
         MOV	R6, [R2]			; obtém a largura do boneco
@@ -628,7 +640,7 @@ rot_desenha_asteroide_e_nave: ; Deposita os valores dos registos abaixo no stack
 
     desenha_todos_pixels:
         CMP R1, 0                               ; verifica se a altura é 0, se sim termina
-        JZ teste_apagar
+        JZ muda_estado_asteroide
 
         MOV R4, R8                              ; reinicia a coluna para o seu valor inicial
         
@@ -641,13 +653,28 @@ rot_desenha_asteroide_e_nave: ; Deposita os valores dos registos abaixo no stack
 
         JMP desenha_todos_pixels        ; continua até percorrer toda a tabela 
 
-    teste_apagar:                       
-        CMP R10, -1                         ; se esta rotina foi usada para apagar (R10 = -1) 
-        JNZ fim_desenha_asteroide_e_nave
-        MOV R10, 3                          ; Põe R10 a 3 de modo a poder desenhar o próximo asteroide
+    muda_estado_asteroide:          ; define se a próxima chamada da rotina é para apagar(-1) ou desenhar(1)                      
+        MOV R5, LARGURA_NAVE
+        CMP R6, R5                  ; verifica se estamos a desenhar uma nave, se sim, ignoram-se as instruções abaixo
+        JZ fim_desenha_asteroide_e_nave
+
+        CMP R10, -1                  ; se for um irá mudar para -1 e vice-versa, se for 0 muda para -1 também
+        JZ muda_para_desenhar         
+        
+        muda_para_apagar:
+            MOV R5, -1              
+            MOV [R11], R5           ; no caso de R10 estar a 1 ou a 0 passa a -1
+
+        muda_para_desenhar:
+            MOV R5, 1
+            MOV [R11], R5                ; no caso de R10 estar a -1 passa a 1
+            JMP fim_desenha_asteroide_e_nave
+
+        
 
     fim_desenha_asteroide_e_nave: ; volta a atribuir os valores acumulados no stack aos devidos registos
-        
+        POP R11
+        POP R10
         POP R8
         POP R7
         POP R6
@@ -934,8 +961,8 @@ rot_jogo_termina:
 rot_atualiza_posicao:
     PUSH R0
     PUSH R1
-    PUSH R3
     PUSH R5
+    PUSH R6
 
 
     
@@ -950,10 +977,11 @@ rot_atualiza_posicao:
         JMP fim_atualiza_posicao
 
     proxima_posicao_asteroide:  
-        MOV R3, [R9]                        ; acede à tabela de controlo do asteroide ativo no momento
-        MOV R5, [R3+2]                      ; acede à tabela de posição do asteroide
+        MOV R6, [R9]                        ; acede à tabela de controlo do asteroide ativo no momento
+        MOV R5, [R6+2]                      ; acede à tabela de posição do asteroide
         MOV R7, [R5]                    ; guarda o endereço da linha do asteroide em R7
         MOV R4, [R5+2]                  ; guarda o endereço da coluna do asteroide em R4
+        MOV R1, [R5+4]                  ; obtém incremento/decremento coluna
         ADD R7, INCREMENTO              ; incrementa a linha (qualquer que seja a coluna o asteroide desce sempre +1 linha)
         ADD R4, R1                       ; incrementa/decrementa a coluna
         MOV [R5], R7
@@ -961,12 +989,12 @@ rot_atualiza_posicao:
 
 
     
-    fim_atualiza_posicao:
-        POP R5
-        POP R3
-        POP R1
-        POP R0
-        RET
+fim_atualiza_posicao:
+    POP R6
+    POP R5
+    POP R1
+    POP R0
+    RET
 
 ; **********************************************************************
 ; Processo
@@ -1025,30 +1053,42 @@ proc_spawn_asteroides:
     
     MOV R3, tabela_geral_posicao        ; guarda o endereço da tabela das combinações de posições possíveis
     MOV R9, controlo_asteroides        ; guarda o endereço da tabela de controlo do primeiro asteroide(asteroide0)
+    MOV R11, R9
+    ADD R11, 6                         ; guarda o endereço máximo da tabela controlo contida em R9 (limite)
 
-; NOTA: quando algum asteroide deixar de existir, altera-se este R9 
-;para o controlo do respetivo asteroide e põe-se a primeira WORD da tabela de controlo a 0 de novo
+; NOTA: quando algum asteroide deixar de existir, altera-se o seu estado na tabela de 
+; controlo do respetivo asteroide e põe-se a primeira WORD da tabela a 0 de novo
 
-spawn_asteroide:
-    YIELD 
-
+spawn_asteroides:
+    YIELD
+    MOV R10, [R9]               ; guarda o endereço da tabela de um asteroide
+    MOV R5, [R10]               ; guarda o estado do asteróide
+    CMP R5, 0                   ; verifica se esse asteroide já existe (se o estado tiver a 0 não existe)
+    JNZ  incrementa_compara     ; no caso de já existe passa à tabela do próximo asteroide
     CALL rot_inicia_asteroide
-    MOV R10, [R9]
-    MOV R11, [R10]
-    CMP R11, 0
-    JZ spawn_asteroide
+
+    incrementa_compara:
+        ADD R9, PROXIMO_ASTEROIDE   ; incrementa R9 por 2 (próxima word)
+        CMP R9, R11                 ; se R9 for inferior ao limite da tabela controlo continua o ciclo
+        JLE spawn_asteroides
     
-    movimento:
+    MOV R9, controlo_asteroides
+    MOV R5, 0
+loop_movimento:
+    YIELD
 
-        MOV R10, -1
-        
-        CALL rot_desenha_asteroide_e_nave    ; desenha o asteroide na nova posição
-        CALL rot_atualiza_posicao            ; incrementa a posição diagonalmente (+1 coluna +1 linha)
-        CALL rot_desenha_asteroide_e_nave
+    CALL rot_inicia_asteroide    ; desenha o asteroide na nova posição
+    CALL rot_atualiza_posicao            ; incrementa a posição diagonalmente (+1 coluna +1 linha)
+    CALL rot_inicia_asteroide
+    ADD R5,2
+    CMP R9, R11
+    JLE loop_movimento 
 
-        MOV R8, [int_asteroide]         ; bloqueia o lock do asteroide para só andar à medida do relógio
         
-    JMP spawn_asteroide
+    
+
+    MOV R8, [int_asteroide]         ; bloqueia o lock do asteroide para só andar à medida do relógio
+    JMP spawn_asteroides
 
     ; Falta separar a parte do movimento e a parte do desenho dos 4 asteroides
 
@@ -1059,7 +1099,7 @@ spawn_asteroide:
 ;;  
 ;; - PARÂMETROS:    
 ;;  R3 - endereço da tabela das combinações de posições possíveis
-;;  R4 - endereço da tabela de controlo do asteroide a ver no momento
+;;  R9 - endereço da tabela de controlo de todos os asteroides
 ;;
 ;; - RETORNA:
 ;;  
@@ -1077,73 +1117,77 @@ rot_inicia_asteroide:
     PUSH R5
     PUSH R6
     PUSH R8
-    PUSH R10 
     PUSH R11
 
     
-    CALL rot_gera_aleatorio             ; recebe dois números pseudoaleatórios: R0 e R1
+    CALL rot_gera_aleatorio             ; recebe dois números pseudoaleatórios: R0(0 a 3) e R1(0 a 4)
 
     MOV R10, [R9]               ; acede à tabela de controlo do asteroide a usar no momento
     MOV R11, [R10]              ; guarda a informação sobre se é para apagar(-1) ou se existe(1) ou não (0)
-    CMP R11, 0                  ; se for não for suposto desenhar avança  
-                              
-    JNZ obtem_dados_asteroide
+    CMP R11, 0                  ; significa que este asteroide ainda não existe  
+    JNZ obtem_dados_tabela_controlo                        
 
-    CMP R0, 0                           ; se R0 não for 0 é para fazer um não minerável senão o oposto
-    JNZ  asteroide_nao_mineravel
+; No caso de ainda não haver asteroide (R11 = 0) cria um
+    cria_asteroide:
 
-    MOV R2, DEF_ASTEROIDE_MINERAVEL     ; no caso de ser minerável, guarda o endereço da sua tabela e salta
-    JMP obtem_tabela_particular
+        obtem_tabela_desenho:
+            CMP R0, 0                           ; se R0 não for 0 é para fazer um não minerável senão o oposto
+            JNZ  asteroide_nao_mineravel
 
-    asteroide_nao_mineravel:
-        MOV R2, DEF_ASTEROIDE_N_MINERAVEL   ; no caso de ser não minerável, guarda o endereço da sua tabela
+            MOV R2, DEF_ASTEROIDE_MINERAVEL     ; no caso de ser minerável, guarda o endereço da sua tabela e salta
+            JMP guarda_tabela_desenho
+
+        asteroide_nao_mineravel:
+            MOV R2, DEF_ASTEROIDE_N_MINERAVEL   ; no caso de ser não minerável, guarda o endereço da sua tabela
+        
+        guarda_tabela_desenho:
+            MOV [R10+4], R2         ; guarda a tabela do objeto na sua word dentro da tabela de controlo do asteroide(3ª word)
+
+        obtem_tabela_coluna_incremento:  ; tabela particular do movimento (dentro das 5 hipóteses de coluna/incremento possíveis)
+            SHL R1, 1               ; multiplica por dois (anda um bit para a direita pois queremos incrementar de 2 em 2 bytes)
+            ADD R3, R1              ; vai adicionar um certo valor par de 0 a 8 a R3 de modo a obter o endereço de uma tabela de direção
+            MOV R5, [R3]            ; guarda o endereço da tabela escolhida
+            MOV R11, [R5+4]         ; acede à word que guarda se a tabela está a ser usada ou não
+            CMP R11, 0
+            JZ muda_estado_tabela  ;no caso de não estar a ser usada salta
+            
+            CALL rot_gera_aleatorio             ; se já estiver a ser usada vai buscar outro número aleatório 
+            
+            MOV R3, tabela_geral_posicao        ; reinicia R3 com o endereço da tabela das combinações de posições possíveis
+            JMP obtem_tabela_coluna_incremento  ; tenta de novo com outro número 
+        
+        muda_estado_tabela:
+            MOV R11, 1           ; MOV auxiliar
+            MOV [R5+4], R11      ; altera o estado da tabela de 0 para 1 (utilizada por um asteroide)
+        
+        define_coluna_inicial:
+            
+            MOV R6, [R10+2]      ; guarda o endereço da tabela de posição do asteroide
+            MOV R3, [R5]         ; MOV auxiliar
+            MOV [R6+2], R3       ; define a coluna inicial do asteroide retirando esse valor da tabela que contém a coluna e o incremento 
+            MOV R3, [R5+2]       ; MOV auxiliar
+            MOV [R6+4], R3       ; guarda o incremento da tabela escolhida na tabela posição do asteroide
     
-    MOV [R10+4], R2         ; guarda a tabela do objeto na sua variável dentro da tabela de controlo do asteroide
-
-    ;FALTA aceder à tabela do objeto na etiqueta abaixo
-    ;neste momento R9 é a tabela de controlo de um asteroide
+    MOV R0, 1       ; MOV auxiliar
+    MOV [R10], R0   ; atualiza a variável de estado do asteroide para 1 (existe)
+    ; fim cria_asteroide
     
-    obtem_dados_asteroide:  
-        MOV R8, [R10+2]         ; acede à  posição guardada na tabela de controlo
+    ; aqui a tabela de controlo do asteroide já contém todos os parâmetros necessários à sua manipulação
+    ; começa a extrair os dados da tabela de controlo
+
+    ; nota: 
+    ; o R10 (endereço inicial da tabela controlo que aponta para a primeira word)
+    ; é obtido logo ao início desta rotina, logo dá para o reutilizar.
+    obtem_dados_tabela_controlo:  
+        MOV R8, [R10+2]         ; guarda a tabela posição guardada na segunda word da tabela de controlo
         MOV R7, [R8]            ; obtém a linha do asteroide
-        ADD R8, 2               ; próxima word
-        MOV R4, [R8]            ; obtém a coluna do asteroide
+        MOV R4, [R8+2]          ; obtém a coluna do asteroide
         MOV R2, [R10+4]         ; lê qual a tabela do asteroide a desenhar
-    
-    obtem_tabela_particular:  ; tabela particular do movimento (dentro das 5 hipóteses)
-        SHL R1, 1               ; multiplica por dois (anda um bit para a direita pois queremos incrementar de 2 em 2 bytes)
-        ADD R3, R1              ; vai adicionar um certo valor par de 0 a 8 a R3 de modo a obter o endereço de uma tabela de direção
-        MOV R5, [R3]            ; guarda o endereço da tabela de direção escolhida
-        MOV R11, [R5+4]         ; acede à word que guarda se a tabela está a ser usada ou não
-        CMP R11, 0
-        JZ busca_coluna_e_incremento    ; se não estiver a ser usada salta
-        CALL rot_gera_aleatorio         ; se já está a ser usada gera um novo número aleatório armazenado em R1
-                                        ; para ver se chama uma tabela que não esteja a ser usada
-        JMP obtem_tabela_particular
-
-    busca_coluna_e_incremento:          ; vai buscar à tabela particular a coluna inicial e se é para incrementar/decrementar
-        MOV R6, [R5]                    ; guarda o endereço da coluna inicial para que seja possível atualizar a variável coluna_asteroide
-        MOV R4, R6                      ; guarda a coluna inicial na variável que contém a coluna do asteroide
-        MOV R1, [R5+2]                    ; guarda o incremento/decremento para ser utilizado na rotina que atualiza a posição
 
     CALL rot_desenha_asteroide_e_nave   ; desenha o asteroide
     
-    MOV R5, 1                    ; variável auxiliar para poder alterar [R10] depois
-    MOV [R10], R5                 ; muda a variável de controlo do asteroide para 1 (já desenhado)
-
-    MOV R11, controlo_asteroides  ; guarda o endereço da tabela controlo_asteroides para comparar com R9
-    ADD R11, 6                      ; adiciona 6 (para adquirir o valor máximo acessível dessa tabela)
-    CMP R9, R11                     ; se R10 for menor que R11, é porque ainda falta pelo menos um asteroide
-    JGE reinicia_R9
-    ADD R9, PROXIMO_ASTEROIDE       ; guarda em R9 o endereço da tabela de controlo do próximo asteroide
-    JMP fim_inicia_asteroide
-
-    reinicia_R9:
-    MOV R9, controlo_asteroides
-    
-fim_inicia_asteroide:
+fim_monitoriza_asteroide:
     POP R11
-    POP R10
     POP R8
     POP R6
     POP R5
@@ -1232,4 +1276,3 @@ rot_int_3:                      ; rotina que trata a interrupção 3
 	MOV [R0], R1
 	POP R0
 	RFE
-
