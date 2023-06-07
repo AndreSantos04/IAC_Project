@@ -1247,6 +1247,12 @@ proc_spawn_asteroides:
 
 spawn_asteroide:
     YIELD 
+                                        ; verifica se o jogo está pausado
+    MOV R5, [estado_jogo]               ; se estiver, bloqueia o processo
+    CMP R5, PAUSA            
+    JZ pause_asteroides                 
+    CMP R5, JOGO                        ; se nao estiver em jogo, entao o jogo acabou
+    JNE gameover_asteroides             ; bloqueia o processo
 
     CALL rot_inicia_asteroide
     MOV R10, [R9]
@@ -1263,24 +1269,16 @@ spawn_asteroide:
         CALL rot_desenha_asteroide_e_nave
 
         MOV R8, [int_asteroide]         ; bloqueia o lock do asteroide para só andar à medida do relógio
-    
-    
     JMP spawn_asteroide
-       
-       ; verifica se o jogo está pausado
-   ;     MOV R5, [estado_jogo]           ; se estiver, bloqueia o processo
-     ;   CMP R5, PAUSA            
-    ;    JNE verifica_fim_jogo
-      ;  MOV R5, [jogo_pausado]
 
-       ; JMP spawn_movimento
-    
+    pause_asteroides:
+        MOV R5, [jogo_pausado]
+        JMP spawn_asteroide
 
-        ;CMP R5, JOGO            ; verifica se o jogo terminou e bloqueia o 
-   ;     JZ loop_painel
-    ;    CMP R5, PAUSA
-     ;   JZ loop_painel
-      ;  MOV R5, [game_over]
+    gameover_asteroides:
+        MOV R5, [game_over]
+        JMP spawn_asteroide  
+        
     ; Falta separar a parte do movimento e a parte do desenho dos 4 asteroides
 
 
