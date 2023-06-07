@@ -1269,7 +1269,7 @@ spawn_asteroide:
         CALL rot_desenha_asteroide_e_nave
 
         MOV R8, [int_asteroide]         ; bloqueia o lock do asteroide para só andar à medida do relógio
-    JMP spawn_asteroide
+        JMP spawn_asteroide
 
     pause_asteroides:
         MOV R5, [jogo_pausado]
@@ -1278,26 +1278,26 @@ spawn_asteroide:
     gameover_asteroides:
         MOV R5, [game_over]
         JMP spawn_asteroide  
-        
+
     ; Falta separar a parte do movimento e a parte do desenho dos 4 asteroides
 
 
-;; **********************************************************************
-;; Rotina 
-;; - trata das escolhas pseudo aleatórias para cada asteroide
-;;  
-;; - PARÂMETROS:    
-;;  R3 - endereço da tabela das combinações de posições possíveis
-;;  R4 - endereço da tabela de controlo do asteroide a ver no momento
-;;
-;; - RETORNA:
-;;  
-;;  R1 - incremento da coluna para o movimento do asteroide
-;;  R2 - tabela do meteorito a desenhar
-;;  R4 - coluna do asteroide 
-;;  R7 - linha do asteroide
-;;  R9 - guarda o valor da tabela de controlo do próximo asteroide
-;; **********************************************************************
+; **********************************************************************
+; Rotina 
+; - trata das escolhas pseudo aleatórias para cada asteroide
+;  
+; - PARÂMETROS:    
+;  R3 - endereço da tabela das combinações de posições possíveis
+;  R4 - endereço da tabela de controlo do asteroide a ver no momento
+;
+; - RETORNA:
+;  
+;  R1 - incremento da coluna para o movimento do asteroide
+;  R2 - tabela do meteorito a desenhar
+;  R4 - coluna do asteroide 
+;  R7 - linha do asteroide
+;  R9 - guarda o valor da tabela de controlo do próximo asteroide
+; **********************************************************************
 
 
 rot_inicia_asteroide:
@@ -1383,90 +1383,90 @@ fim_inicia_asteroide:
 
 
 
-PROCESS SP_sonda
-
-sonda:
-
-    MOV R0, [movimenta_gera_sonda]     ; desbloqueia o processo
-    
-    MOV R4, [estado_jogo]    ; verifica o estado do jogo
-    CMP R4, PAUSA            ; se estiver pausado, bloqueia o processo
-    JZ pause_sonda
-    CMP R4, SEM_ENERGIA      ; se estiver terminado ou peridido (colisao/sem energia)
-    JZ game_over_sonda       ; bloqueia o processo
-    CMP R4, COLISAO
-    JZ game_over_sonda
-    CMP R4, TERMINADO
-    JZ game_over_sonda
-
-    MOV R11, ALCANCE_SONDA
-    MOV R10, DISPLAY_ENERGIA_SONDA
-
-                                        ; verifica se é para movimentar ou gerar sonda
-    MOV R5, TECLA_DISPARO_FRENTE        ; se o processo foi desbloqueado por uma tecla de disparo
-    CMP R0, R5                          ; verifica qual foi a tecla
-    JZ disparo_frente                   ; e verifica se está em condicoes de disparar
-                                        ; ou seja criar uma nova sonda na respetiva direção
-    MOV R5, TECLA_DISPARO_ESQUERDA
-    CMP R0, R5
-    JZ disparo_esquerda
-    
-    MOV R5, TECLA_DISPARO_DIREITA
-    CMP R0, R5
-    JZ disparo_direita
-
-    JMP movimenta_sondas                ; se não for para disparar, é para movimentar as sondas
-
-disparo_frente:                         ; verifica se já existe uma sonda na direção pretendida
-                                        ; se nao existir, cria uma nova sonda
-    MOV R0, R11 ; Alcance da sonda frente
-    MOV R1, [ha_sonda_frente]
-    CMP R1, 1
-    JNZ sonda                           ; se já existir uma sonda, não faz nada
-
-gera_sonda_frente:
-    ;;;;Cria sonda frente
-    MOV [energia_display], R10          ; desbloqueia o processo de atualização do display de energia, para diminuir a energia por cada sonda criada
-    JMP sonda
-
-disparo_esquerda:                       ; verifica se já existe uma sonda na direção pretendida
-                                        ; se nao existir, cria uma nova sonda
-    MOV R0, R11 ; Alcance da sonda esquerda
-    MOV R1, [ha_sonda_esquerda]
-    CMP R1, 1
-    JNZ sonda                           ; se já existir uma sonda, não faz nada
-
-gera_sonda_esquerda:
-    ;;;;Cria sonda esquerda
-    MOV [energia_display], R10          ; desbloqueia o processo de atualização do display de energia, para diminuir a energia por cada sonda criada
-    JMP sonda
-
-disparo_direita:                    ; verifica se já existe uma sonda na direção pretendida
-                                    ; se nao existir, cria uma nova sonda
-    MOV R0, R11 ; Alcance da sonda direita
-    MOV R1, [ha_sonda_direita]
-    CMP R1, 1
-    JNZ sonda                       ; se já existir uma sonda, não faz nada
-
-gera_sonda_direita:
-    ;;;;Cria sonda direita
-    MOV [energia_display], R10          ; desbloqueia o processo de atualização do display de energia, para diminuir a energia por cada sonda criada
-    JMP sonda
-
-movimenta_sondas:                   ; movimenta as sondas existentes
-    ;;;;Movimenta sondas
-    MOV R0, [int_sonda]  ;;;;;;LOCK
-
-    JMP sonda
-pause_missil:
-    MOV R0, [jogo_pausado]          ; bloqueia o processo enquanto o jogo esta pausado
-    JMP sonda
-
-game_over_missil:
-    MOV R0, [game_over]             ; bloqueia o processo quando o jogo termina
-    JMP sonda
-
-;; **********************************************************************
+;PROCESS SP_sonda
+;
+;sonda:
+;
+;    MOV R0, [movimenta_gera_sonda]     ; desbloqueia o processo
+;    
+;    MOV R4, [estado_jogo]    ; verifica o estado do jogo
+;    CMP R4, PAUSA            ; se estiver pausado, bloqueia o processo
+;    JZ pause_sonda
+;    CMP R4, SEM_ENERGIA      ; se estiver terminado ou peridido (colisao/sem energia)
+;    JZ game_over_sonda       ; bloqueia o processo
+;    CMP R4, COLISAO
+;    JZ game_over_sonda
+;    CMP R4, TERMINADO
+;    JZ game_over_sonda
+;
+;    MOV R11, ALCANCE_SONDA
+;    MOV R10, DISPLAY_ENERGIA_SONDA
+;
+;                                        ; verifica se é para movimentar ou gerar sonda
+;    MOV R5, TECLA_DISPARO_FRENTE        ; se o processo foi desbloqueado por uma tecla de disparo
+;    CMP R0, R5                          ; verifica qual foi a tecla
+;    JZ disparo_frente                   ; e verifica se está em condicoes de disparar
+;                                        ; ou seja criar uma nova sonda na respetiva direção
+;    MOV R5, TECLA_DISPARO_ESQUERDA
+;    CMP R0, R5
+;    JZ disparo_esquerda
+;    
+;    MOV R5, TECLA_DISPARO_DIREITA
+;    CMP R0, R5
+;    JZ disparo_direita
+;
+;    JMP movimenta_sondas                ; se não for para disparar, é para movimentar as sondas
+;
+;disparo_frente:                         ; verifica se já existe uma sonda na direção pretendida
+;                                        ; se nao existir, cria uma nova sonda
+;    MOV R0, R11 ; Alcance da sonda frente
+;    MOV R1, [ha_sonda_frente]
+;    CMP R1, 1
+;    JNZ sonda                           ; se já existir uma sonda, não faz nada
+;
+;gera_sonda_frente:
+;    ;;;;Cria sonda frente
+;    MOV [energia_display], R10          ; desbloqueia o processo de atualização do display de energia, para diminuir a energia por cada sonda criada
+;    JMP sonda
+;
+;disparo_esquerda:                       ; verifica se já existe uma sonda na direção pretendida
+;                                        ; se nao existir, cria uma nova sonda
+;    MOV R0, R11 ; Alcance da sonda esquerda
+;    MOV R1, [ha_sonda_esquerda]
+;    CMP R1, 1
+;    JNZ sonda                           ; se já existir uma sonda, não faz nada
+;
+;gera_sonda_esquerda:
+;    ;;;;Cria sonda esquerda
+;    MOV [energia_display], R10          ; desbloqueia o processo de atualização do display de energia, para diminuir a energia por cada sonda criada
+;    JMP sonda
+;
+;disparo_direita:                    ; verifica se já existe uma sonda na direção pretendida
+;                                    ; se nao existir, cria uma nova sonda
+;    MOV R0, R11 ; Alcance da sonda direita
+;    MOV R1, [ha_sonda_direita]
+;    CMP R1, 1
+;    JNZ sonda                       ; se já existir uma sonda, não faz nada
+;
+;gera_sonda_direita:
+;    ;;;;Cria sonda direita
+;    MOV [energia_display], R10          ; desbloqueia o processo de atualização do display de energia, para diminuir a energia por cada sonda criada
+;    JMP sonda
+;
+;movimenta_sondas:                   ; movimenta as sondas existentes
+;    ;;;;Movimenta sondas
+;    MOV R0, [int_sonda]  ;;;;;;LOCK
+;
+;    JMP sonda
+;pause_missil:
+;    MOV R0, [jogo_pausado]          ; bloqueia o processo enquanto o jogo esta pausado
+;    JMP sonda
+;
+;game_over_missil:
+;    MOV R0, [game_over]             ; bloqueia o processo quando o jogo termina
+;    JMP sonda
+;
+;;; **********************************************************************
 ;; Rotina 
 ;; - gera dois números aleatórios, um entre 0 e 3, outro entre 0 e 4
 ;;  
