@@ -43,7 +43,6 @@ TOCA_SOM					EQU COMANDOS + 5AH		; endereço do comando para tocar um som
 
 ; * Constantes - posição
 LINHA_ASTEROIDE         EQU  0      ; 1ª linha do asteroide 
-COLUNA_ASTEROIDE_ESQ	EQU  0      ; 1ª coluna do asteroide
 COLUNA_ASTEROIDE_MEIO   EQU  29     ; coluna onde começar a desenhar para o asteroide ficar centralizado
 LINHA_NAVE              EQU  27     ; 1ª linha da nave 
 COLUNA_NAVE             EQU  25     ; 1ª coluna da nave 
@@ -171,11 +170,6 @@ estado_jogo:
 nova_nave:
     WORD 0              ; WORD para o redesenhar a nave
 
-
-
-
-linha_sonda:
-    WORD LINHA_SONDA            ; variável que guarda a linha da sonda
 
 
 ; * Tabelas dos objetos
@@ -617,7 +611,7 @@ rot_desenha_asteroide_e_nave: ; Deposita os valores dos registos abaixo no stack
 ; Os blocos acima tratam os casos em que já existe um asteroide
     MOV R8, DEF_NAVE                    ; guarda o valor da memória na primeira posição da tabela que define a nave 
     CMP R2, R8                          ; verifica se foi pedido para desenhar uma nave
-    JNZ obtem_estado_asteroide       ; se não foi pedida a nave então foi um asteroide
+    JNZ obtem_estado_asteroide       ; se não foi pedida a nave então foi pedido um asteroide
     
     posicao_inicial_nave:
         MOV  R7, LINHA_NAVE			    ; linha da nave
@@ -664,11 +658,11 @@ rot_desenha_asteroide_e_nave: ; Deposita os valores dos registos abaixo no stack
         muda_para_apagar:
             MOV R5, -1              
             MOV [R11], R5           ; no caso de R10 estar a 1 ou a 0 passa a -1
-
+            JMP fim_desenha_asteroide_e_nave
         muda_para_desenhar:
             MOV R5, 1
             MOV [R11], R5                ; no caso de R10 estar a -1 passa a 1
-            JMP fim_desenha_asteroide_e_nave
+            
 
         
 
@@ -799,7 +793,7 @@ rot_desenha_sonda:
 
     posicao_sonda:
 
-        MOV  R7, [linha_sonda]			; linha da nave
+;        MOV  R7, [linha_sonda]			; linha da nave
         ADD R10, 2						; Diz à variável de controlo que após esta já rotina haverá uma sonda desenhada
     
     coluna_constante:
@@ -967,13 +961,13 @@ rot_atualiza_posicao:
 
     
     MOV R0, DEF_SONDA           
-    MOV R8, [linha_sonda]
+    ;MOV R8, [linha_sonda]
     CMP R2, R0                          ; verifica se o objeto é uma sonda
     JNZ proxima_posicao_asteroide       ; salta se não for sonda (será asteroide)
 
     proxima_posicao_sonda:
         SUB R8, 1                       ; decrementa a linha, ou seja sobe no ecrã verticalmente
-        MOV [linha_sonda], R8
+    ;    MOV [linha_sonda], R8
         JMP fim_atualiza_posicao
 
     proxima_posicao_asteroide:  
@@ -1060,7 +1054,7 @@ proc_spawn_asteroides:
 ; controlo do respetivo asteroide e põe-se a primeira WORD da tabela a 0 de novo
 
 spawn_asteroides:
-    YIELD
+
     MOV R10, [R9]               ; guarda o endereço da tabela de um asteroide
     MOV R5, [R10]               ; guarda o estado do asteróide
     CMP R5, 0                   ; verifica se esse asteroide já existe (se o estado tiver a 0 não existe)
@@ -1073,14 +1067,12 @@ spawn_asteroides:
         JLE spawn_asteroides
     
     MOV R9, controlo_asteroides
-    MOV R5, 0
 loop_movimento:
-    YIELD
 
     CALL rot_inicia_asteroide    ; desenha o asteroide na nova posição
     CALL rot_atualiza_posicao            ; incrementa a posição diagonalmente (+1 coluna +1 linha)
     CALL rot_inicia_asteroide
-    ADD R5,2
+    ADD R9, PROXIMO_ASTEROIDE
     CMP R9, R11
     JLE loop_movimento 
 
