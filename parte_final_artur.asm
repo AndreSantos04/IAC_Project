@@ -734,6 +734,7 @@ espera_tecla:				; neste ciclo espera-se até uma tecla ser premida
 	MOV	[tecla_carregada], R9	; informa quem estiver bloqueado neste LOCK que uma tecla foi carregada
 							; ( o valor escrito e a tecla carregada)
 
+
 reinicializa_jogo:ha_tecla
 	MOV R4, [estado_jogo]   ; se estado de jogo = 2 e carregou em tecla C
 							; sigifica que perdeu o jogo e quer voltar a jogar
