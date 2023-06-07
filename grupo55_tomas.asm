@@ -1060,7 +1060,7 @@ proc_spawn_asteroides:
 ; controlo do respetivo asteroide e põe-se a primeira WORD da tabela a 0 de novo
 
 spawn_asteroides:
-    YIELD
+
     MOV R10, [R9]               ; guarda o endereço da tabela de um asteroide
     MOV R5, [R10]               ; guarda o estado do asteróide
     CMP R5, 0                   ; verifica se esse asteroide já existe (se o estado tiver a 0 não existe)
@@ -1073,14 +1073,12 @@ spawn_asteroides:
         JLE spawn_asteroides
     
     MOV R9, controlo_asteroides
-    MOV R5, 0
 loop_movimento:
-    YIELD
 
     CALL rot_inicia_asteroide    ; desenha o asteroide na nova posição
     CALL rot_atualiza_posicao            ; incrementa a posição diagonalmente (+1 coluna +1 linha)
     CALL rot_inicia_asteroide
-    ADD R5,2
+    ADD R9, PROXIMO_ASTEROIDE
     CMP R9, R11
     JLE loop_movimento 
 
