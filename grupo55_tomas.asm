@@ -43,7 +43,6 @@ TOCA_SOM					EQU COMANDOS + 5AH		; endereço do comando para tocar um som
 
 ; * Constantes - posição
 LINHA_ASTEROIDE         EQU  0      ; 1ª linha do asteroide 
-COLUNA_ASTEROIDE_ESQ	EQU  0      ; 1ª coluna do asteroide
 COLUNA_ASTEROIDE_MEIO   EQU  29     ; coluna onde começar a desenhar para o asteroide ficar centralizado
 LINHA_NAVE              EQU  27     ; 1ª linha da nave 
 COLUNA_NAVE             EQU  25     ; 1ª coluna da nave 
@@ -171,11 +170,6 @@ estado_jogo:
 nova_nave:
     WORD 0              ; WORD para o redesenhar a nave
 
-
-
-
-linha_sonda:
-    WORD LINHA_SONDA            ; variável que guarda a linha da sonda
 
 
 ; * Tabelas dos objetos
@@ -799,7 +793,7 @@ rot_desenha_sonda:
 
     posicao_sonda:
 
-        MOV  R7, [linha_sonda]			; linha da nave
+;        MOV  R7, [linha_sonda]			; linha da nave
         ADD R10, 2						; Diz à variável de controlo que após esta já rotina haverá uma sonda desenhada
     
     coluna_constante:
@@ -967,13 +961,13 @@ rot_atualiza_posicao:
 
     
     MOV R0, DEF_SONDA           
-    MOV R8, [linha_sonda]
+    ;MOV R8, [linha_sonda]
     CMP R2, R0                          ; verifica se o objeto é uma sonda
     JNZ proxima_posicao_asteroide       ; salta se não for sonda (será asteroide)
 
     proxima_posicao_sonda:
         SUB R8, 1                       ; decrementa a linha, ou seja sobe no ecrã verticalmente
-        MOV [linha_sonda], R8
+    ;    MOV [linha_sonda], R8
         JMP fim_atualiza_posicao
 
     proxima_posicao_asteroide:  
