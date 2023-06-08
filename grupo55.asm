@@ -50,7 +50,12 @@ SELECIONA_CENARIO_FUNDO  	EQU COMANDOS + 42H		; endereço do comando para seleci
 SELECIONA_CENARIO_FRONTAL   EQU COMANDOS + 46H		; endereço do comando para selecionar uma imagem frontal
 TOCA_SOM					EQU COMANDOS + 5AH		; endereço do comando para tocar um som
 APAGA_CENARIO_FRONTAL       EQU COMANDOS + 44H      ; endereço do comando para apagar o cenário frontal
-SELECIONA_ECRA_PIXEIS       EQU COMANDOS + 04H     ; endereço do comando para selecionar o ecrã de pixeis
+SELECIONA_ECRA_PIXEIS       EQU COMANDOS + 04H      ; endereço do comando para selecionar o ecrã de pixeis
+TOCA_SOM_LOOP               EQU COMANDOS + 5CH      ; endereço do comando para tocar um som em loop
+PAUSA_SOM_LOOP              EQU COMANDOS + 5EH      ; endereço do comando para pausar a reproducao de um som
+CONTINUA_SOM_LOOP           EQU COMANDOS + 60H      ; endereço do comando para continuar a tocar um som
+TERMINA_SOM_LOOP            EQU COMANDOS + 66H      ; endereço do comando para terminar de tocar um som
+TERMINA_TODOS_SONS          EQU COMANDOS + 68H      ; endereço do comando para terminar todos os sons que estejam a tocar
 
 
 ; * Constantes - posição
@@ -133,8 +138,17 @@ DISPLAY_AUMENTA_ENERGIA   EQU 1       ; indica ao processo display que a energia
 DISPLAY_ENERGIA_SONDA     EQU 2       ; indica ao processo display que a energia diminui devido a sonda
 
 ; * Constantes - MEDIA CENTER
-SOM_DISPARO        EQU 2
-SOM_ASTEROIDE      EQU 1
+SOM_INICIO              EQU 0;
+SOM_DISPARO             EQU 1
+SOM_ASTEROIDEDESTRUIDO  EQU 2
+SOM_UNPAUSE             EQU 3;
+SOM_PAUSE               EQU 4;
+SOM_COLISAOFIM          EQU 5;
+SOM_SEMENERGIA          EQU 6;
+SOM_TERMINADO           EQU 7;
+SOM_JOGO                EQU 8
+SOM_ASTEROIDEMINERAVEL  EQU 9
+
 
 IMAGEM_INICIO      EQU 0
 IMAGEM_JOGO        EQU 1
@@ -650,14 +664,19 @@ proc_pause:
         JZ  unpause                             ; volta o jogo
 
         CMP R4, JOGO                            ; se o jogo não estiver a decorrer nem em pausa
-        JNZ proc_pause                            ; nao faz nada
+        JNZ proc_pause                          ; nao faz nada
+
+        MOV R4, SOM_JOGO
+        MOV [PAUSA_SOM_LOOP], R4                ; pausa o som de jogo em loop enquanto está no menu de pausa
 
         MOV R4, PAUSA                           ; se o jogo estiver a decorrer 
         MOV [estado_jogo], R4                   ; coloca o jogo em pausa
 
+        MOV R7, SOM_PAUSE
+        MOV [TOCA_SOM], R7                      ; toca o som de pausa
 
         MOV R7, IMAGEM_PAUSE                       
-        MOV [SELECIONA_CENARIO_FRONTAL], R7       ; coloca o ecrã de pausa
+        MOV [SELECIONA_CENARIO_FRONTAL], R7     ; coloca o ecrã de pausa
 
         JMP proc_pause
 
@@ -666,10 +685,18 @@ proc_pause:
        MOV R4, JOGO                            ; retoma o jogo   
        MOV [estado_jogo], R4
                
+    
        MOV [APAGA_CENARIO_FRONTAL], R4         ; volta ao ecrã de jogo 
        MOV [jogo_pausado], R4
+
+       MOV R4, SOM_UNPAUSE   
+       MOV [TOCA_SOM], R4                      ; toca o som de retomar o jogo
+
+
+        MOV R4, SOM_JOGO
+        MOV [CONTINUA_SOM_LOOP], R4           ; retoma a reproduçao do som de jogo em loop
        
-       JMP proc_pause
+        JMP proc_pause
 
 
 ; **********************************************************************
@@ -707,15 +734,30 @@ perdeu_sem_energia:
 
     MOV R4, IMAGEM_SEMENERGIA           ; Caso tenha perdido por falta de energia
     ;MOV [APAGA_ECRÃ], R4
-    MOV [SELECIONA_CENARIO_FRONTAL], R4   ; Muda o fundo do ecrã e toca o som especifico
-    ;;;;;SOM    
+    MOV [SELECIONA_CENARIO_FRONTAL], R4 ; Muda o fundo do ecrã e toca o som especifico
+
+    MOV R4, SOM_JOGO
+    MOV [TERMINA_SOM_LOOP], R4           ; para o som de jogo em loop
+
+
+    MOV R4, SOM_SEMENERGIA
+    MOV [TOCA_SOM], R4                  ; toca o som de fim de jogo por falta de energia
+
     JMP verifica_recomeca_jogo          ; espera até carregar na tecla de reiniciar o jogo (C)
 
 perdeu_colisao:
 
+    MOV R4, SOM_JOGO
+    MOV [TERMINA_SOM_LOOP], R4           ; para o som de jogo em loop
+
+    MOV R4, SOM_COLISAOFIM
+    MOV [TOCA_SOM], R4                  ; toca o som de fim de jogo por colisao com a nave
+
     MOV R4, IMAGEM_COLISAO              ; Caso tenha perdido por uma colisao com a nave
     MOV [SELECIONA_CENARIO_FRONTAL], R4   ; Muda o fundo do ecrã e toca o som especifico
-    ;;;;;SOM
+    
+
+
     JMP verifica_recomeca_jogo          ; espera até carregar na tecla de reiniciar o jogo (C)
     
 verifica_tecla:
@@ -733,7 +775,13 @@ termina_jogo:                   ;Caso tenha saido do jogo ao clicar na tecla de 
 
     MOV R4, IMAGEM_TERMINADO    ; Muda o fundo do ecrã e toca o som especifico    
     MOV [SELECIONA_CENARIO_FRONTAL], R4
-    ;;;;;SOM
+
+    MOV R4, SOM_JOGO
+    MOV [TERMINA_SOM_LOOP], R4           ; para o som de jogo em loop
+    
+    MOV R4, SOM_TERMINADO
+    MOV [TOCA_SOM], R4          ; toca o som de jogo terminado
+
     JMP verifica_recomeca_jogo  ; espera até carregar na tecla de reiniciar o jogo (C)
 
 verifica_recomeca_jogo:
@@ -774,7 +822,12 @@ rot_inicia_jogo:
     MOV [APAGA_ECRÃ], R4
     MOV [APAGA_CENARIO_FRONTAL], R4
     MOV [SELECIONA_CENARIO_FUNDO], R4
-    ;;;;;SOM
+
+    MOV [TERMINA_TODOS_SONS], R4       ; para todos os sons que estejam a tocar
+
+    MOV R4, SOM_INICIO
+    MOV [TOCA_SOM], R4                 ; toca o som de inicio de jogo
+
 
     MOV R4, VALOR_INICIAL_DISPLAY_HEX
     MOV [display_HEX], R4              ; guarda o valor inicial do display em hexadecimal
@@ -783,21 +836,20 @@ rot_inicia_jogo:
     MOV [DISPLAYS], R4                  ; inicializa o display com o valor inicial em decimal
 
 
-    ;MOV R2, DEF_SONDA                   ; guarda a próxima tabela a ser desenhada         
-    ;CALL rot_desenha_sonda              ; desenha a sonda
+
     MOV R2, DEF_NAVE                    ; Inicializa o registo 2 que vai indicar que boneco desenhar
     CALL rot_desenha_asteroide_e_nave   ; desenha a nave
-    MOV R2, DEF_ASTEROIDE_N_MINERAVEL   ; guarda qual a próxima tabela a ser desenhada 
-    CALL rot_desenha_asteroide_e_nave   ; desenha o asteroide se ainda não estiver desenhado
 
 
+    MOV R4, SOM_JOGO
 
+    MOV [TOCA_SOM_LOOP], R4                  ; toca o som de jogo em loop até ser parado
+ 
     MOV [jogo_pausado], R4              ; desbloqueia os processos essenciais ao jogo
     MOV [game_over], R4
 
     POP R4
     POP R2
-
     RET
 
 ; ************************************************************************************
@@ -1734,6 +1786,7 @@ rot_gera_sonda:
     PUSH R0
     PUSH R1
     PUSH R2
+    PUSH R10
 
     MOV R2, ALCANCE_SONDA               ; guarda o alcance da sonda
     MOV [R1], R2                        ; inicia o alcance da sonda
@@ -1743,12 +1796,18 @@ rot_gera_sonda:
     
     CALL rot_desenha_sonda              ; desenha a sonda na posição inicial da nave
 
-    
+    MOV R10, SOM_DISPARO
+    MOV [TOCA_SOM], R10                 ; toca o som de disparo da sonda
+
     MOV R10, DISPLAY_ENERGIA_SONDA      ; guarda o valor de diminuição de energia por cada sonda criada
 
     MOV [energia_display], R10          ; desbloqueia o processo de atualização do display de energia, para diminuir a energia por cada sonda criada
+    
+
+    
     JMP sonda
 
+    POP R10
     POP R2
     POP R1
     POP R0
