@@ -621,8 +621,9 @@ rot_converte_numero:
 PROCESS SP_pause
 
 proc_pause:
-    MOV R4, [estado_jogo]     ; guarda o estado do jogo
+    
     MOV R0, [tecla_carregada] ; bloqueia o processo até uma tecla ser carregada
+    MOV R4, [estado_jogo]     ; guarda o estado do jogo
     MOV R1, TECLA_JOGO_PAUSA
 
     CMP R0, R1                ; verifica se a tecla carregada e a tecla de pausa
@@ -1542,9 +1543,6 @@ sonda:
     CMP R4, JOGO             ; se nao estiver em jogo, bloqueia o processo
     JNZ game_over_sonda      ; bloqueia o processo
 
-
-
-    MOV R10, DISPLAY_ENERGIA_SONDA
     MOV R9, controlo_sondas             ; guarda o endereço da tabela de controlo das sondas
                                         ; verifica se é para movimentar ou gerar sonda
     MOV R5, TECLA_DISPARO_FRENTE        ; se o processo foi desbloqueado por uma tecla de disparo
@@ -1653,7 +1651,7 @@ rot_movimenta_sondas:
             JMP proxima_sonda
 
             desenha:
-                CALL rot_desenha_sonda
+            CALL rot_desenha_sonda
 
         proxima_sonda:
         ADD R0, 2
@@ -1689,6 +1687,8 @@ rot_gera_sonda:
     MOV R1, [R9+R0]     ; guarda o endereço da tabela da sonda que pretendemos mudar em R1
     
     CALL rot_desenha_sonda              ; desenha a sonda na posição inicial da nave
+    
+    MOV R10, DISPLAY_ENERGIA_SONDA      ; guarda o valor de diminuição de energia por cada sonda criada
     MOV [energia_display], R10          ; desbloqueia o processo de atualização do display de energia, para diminuir a energia por cada sonda criada
     JMP sonda
 
