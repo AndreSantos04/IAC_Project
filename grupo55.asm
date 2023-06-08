@@ -67,6 +67,7 @@ COLUNA_PAINEL			EQU  29
 
 MIN_COLUNA		        EQU  0		; número da coluna mais à esquerda que o objeto pode ocupar
 MAX_COLUNA		        EQU  63     ; número da coluna mais à direita que o objeto pode ocupar
+MAX_LINHA               EQU  31     ; maior valor de linha dentro do ecrã visível
 MAX_COLUNA_ASTEROIDE    EQU  59     ; numero da coluna mais à direita que permite desenhar um asteroide completo
 PROXIMO_ASTEROIDE       EQU  2      ; valor que é preciso adicionar à tabela de controlo de asteroides para 
                                     ; obter a tabela do próximo asteroide
@@ -191,6 +192,11 @@ SP_game_over:
 
     STACK 100H
 SP_sonda:
+
+;    STACK 100H
+;SP_colisao_sonda_asteroide:
+
+
 ; LOCKS dos diferentes processos e rotinas
 
 tecla_carregada:
@@ -229,7 +235,7 @@ movimenta_gera_sonda:
                         ; se estiver a 4 movimenta as sondas disparadas
 
 
-;testa_colisao:          ; controla o processo da testagem de possíveis colisões
+;colisao_sonda_asteroide:          ; controla o processo da testagem de possíveis colisões
 ;    LOCK 0
 
 
@@ -1234,7 +1240,8 @@ rot_atualiza_posicao:
         
         JMP fim_atualiza_posicao
 
-    proxima_posicao_asteroide:  
+    
+    proxima_posicao_asteroide:
         MOV R6, [R9]                    ; acede à tabela de controlo do asteroide ativo no momento
         MOV R5, [R6+2]                  ; acede à tabela de posição do asteroide
         MOV R3, [R5]                    ; guarda o endereço da linha do asteroide 
@@ -1362,19 +1369,24 @@ spawn_asteroides:
 
 loop_movimento:
     CALL rot_testa_colisao_nave     ; verifica se o asteroide colidiu com a nave
-    CMP R6, COLISAO
+    CMP R6, COLISAO                 ; se houver colisão irá para o game over
     JZ gameover_asteroides
+                                    ; se não houver colisão continua o movimento
+    CALL rot_inicia_asteroide       ; apaga o asteroide da posição atual para poder desenhar na próxima
     
-    CALL rot_inicia_asteroide       ; desenha o asteroide na nova posição
-    CALL rot_atualiza_posicao       ; incrementa a posição diagonalmente (+1 coluna +1 linha) 
-    CALL rot_inicia_asteroide
-    
-    
-    ADD R9, PROXIMO_ASTEROIDE
-    CMP R9, R11
-    JLE loop_movimento 
+    CALL rot_testa_limites          ; verifica se o asteroide chegou ao limite do ecrã
+    CMP R5, 1                       
+    JZ proc_asteroides              ; se chegou ao limite vai desenhá-lo nalguma posição inicial
 
-    JMP proc_asteroides
+    CALL rot_atualiza_posicao       ; incrementa a posição diagonalmente (+1 coluna +1 linha) 
+    CALL rot_inicia_asteroide       ; desenha o asteroide na nova posição
+    
+    incrementa:
+        ADD R9, PROXIMO_ASTEROIDE       ; incrementa R9 de modo ao seu endereço apontar para o próximo asteroide
+        CMP R9, R11
+        JLE loop_movimento              ; se ainda não tiver percorrido todos os asteroides vao para o próximo
+
+    JMP proc_asteroides             ; no caso de já ter visto todos os asteroides
 
 pause_asteroides:
     MOV R5, [jogo_pausado]
@@ -1459,7 +1471,8 @@ fim_apaga_asteroide_gameover:
 
 
 rot_inicia_asteroide:
-
+    PUSH R0 
+    PUSH R1
     PUSH R3
     PUSH R5
     PUSH R6
@@ -1542,6 +1555,8 @@ fim_inicia_asteroide:
     POP R6
     POP R5
     POP R3
+    POP R1
+    POP R0
     RET
 
 ; **********************************************************************
@@ -1624,6 +1639,19 @@ pause_sonda:
 game_over_sonda:
     MOV R0, [game_over]             ; bloqueia o processo quando o jogo termina
     JMP sonda
+
+
+; **********************************************************************
+; Processo
+;
+; painel_nave - Processo que lê o relógio da nave e muda o lock int_painel_nave
+;               para que seja possível mudar as cores do painel da nave
+;		
+;       R0, R1 - largura do painel e altura do painel, respetivamente
+;		R2 - endereço da tabela das cores definida no início 
+;       R4, R7 - linha e coluna do painel, respetivamente
+; **********************************************************************
+
 
 
 
@@ -1726,6 +1754,13 @@ rot_gera_sonda:
     POP R0
     RET
 
+;; **********************************************************************
+;; Rotina 
+;; - DESCRIÇÃO
+;;  
+;; 
+;;  
+;; **********************************************************************
 
 
 rot_apaga_sondas_gameover:
@@ -1775,6 +1810,7 @@ fim_apaga_sonda_gameover:
     POP R1
     RET
 
+
 ;; **********************************************************************
 ;; Rotina 
 ;; - verifica se a coluna do asteroide está no intervalo das colunas da nave
@@ -1822,7 +1858,42 @@ fim_testa_colisao_nave:
     POP R1
     POP R0
 
-     
+
+;; **********************************************************************
+;; Rotina 
+;; - verifica se um asteroide chegou ao limite do ecrã ou não (se a linha for igual a 31)
+;; RETORNA: R5 com 1 se chegou ao limite ou 0 se não chegou
+;; **********************************************************************
+rot_testa_limites:
+    PUSH R0
+    PUSH R1
+    PUSH R4
+    PUSH R7
+    PUSH R8
+
+    MOV R5, 0           ; inicia a variável que indica se chegou ao limite
+    MOV R0, [R9]        ; acede à tabela de controlo do asteroide a usar no momento
+    MOV R1, [R0+2]      ; guarda a tabela da posição do asteroide
+    MOV R7, [R1]        ; guarda a linha do asteroide
+    MOV R4, MAX_LINHA   ; guarda a linha máxima para comparar à do asteroide
+    CMP R7, R4
+    JNZ fim_testa_limites
+
+    chegou_limite:
+        MOV R5, 1          ; se chegou ao limite R5 passa para 1
+        MOV R4, 0          ; MOV auxiliar
+        MOV [R0], R4       ; muda o estado do asteroide para 0 para indicar que vai deixar de existir
+        MOV [R1], R4       ; reinicia a linha do asteroide a 0 
+        MOV R8, [R0+6]     ; guarda endereço da tabela da posição inicial e incremento do asteroide
+        MOV [R8+4], R4     ; altera o estado dessa tabela para 0
+
+fim_testa_limites:
+    POP R8 
+    POP R7
+    POP R4
+    POP R1
+    POP R0
+    RET
 
 ;; **********************************************************************
 ;; Rotina 
