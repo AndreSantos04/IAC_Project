@@ -228,8 +228,10 @@ movimenta_gera_sonda:
                         ; 0 - esquerda; 1 - frente; 2 - direita
                         ; se estiver a 4 movimenta as sondas disparadas
 
-testa_colisao:          ; controla o processo da testagem de possíveis colisões
-    LOCK 0
+
+;testa_colisao:          ; controla o processo da testagem de possíveis colisões
+;    LOCK 0
+
 
 display_HEX:
     WORD 0064H          ; WORD para o valor do display em hexadecimal
@@ -1190,7 +1192,6 @@ rot_converte_Hex_Decimal:
 rot_atualiza_posicao:
     PUSH R0
     PUSH R1
-    PUSH R3
     PUSH R5
     PUSH R6
     PUSH R8
@@ -1234,7 +1235,6 @@ fim_atualiza_posicao:
     POP R8
     POP R6
     POP R5
-    POP R3
     POP R1
     POP R0
     RET
@@ -1387,6 +1387,7 @@ apaga_asteroide:
 
     MOV R5, [R9]                    ; guarda o endereço da tabela de um asteroide
     MOV R10, [R5]                   ; guarda o estado do asteróide
+
 
     MOV R10, 0                      ; coloca o estado do asteroide a 0
     MOV [R5], R10                   ; guarda o estado do asteroide na tabela de controlo
@@ -1629,7 +1630,9 @@ rot_movimenta_sondas:
         MOV R1, [R9+R0]                 ; endereço da tabela de uma sonda
         MOV R3, [R1]                    ; alcance da sonda
         CMP R3, 0                       ; se o alcance for 0, a sonda não existe
-        JZ proxima_sonda                ; passa para a próxima sonda
+
+        ;JZ reinicia_linha_e_coluna                ; passa para a próxima sonda
+
 
         movimento_sonda:
             apaga:
@@ -1651,7 +1654,9 @@ rot_movimenta_sondas:
             JMP proxima_sonda
 
             desenha:
+
             CALL rot_desenha_sonda
+
 
         proxima_sonda:
         ADD R0, 2
@@ -1687,8 +1692,10 @@ rot_gera_sonda:
     MOV R1, [R9+R0]     ; guarda o endereço da tabela da sonda que pretendemos mudar em R1
     
     CALL rot_desenha_sonda              ; desenha a sonda na posição inicial da nave
+
     
     MOV R10, DISPLAY_ENERGIA_SONDA      ; guarda o valor de diminuição de energia por cada sonda criada
+
     MOV [energia_display], R10          ; desbloqueia o processo de atualização do display de energia, para diminuir a energia por cada sonda criada
     JMP sonda
 
