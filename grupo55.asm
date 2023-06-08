@@ -67,6 +67,7 @@ COLUNA_PAINEL			EQU  29
 
 MIN_COLUNA		        EQU  0		; número da coluna mais à esquerda que o objeto pode ocupar
 MAX_COLUNA		        EQU  63     ; número da coluna mais à direita que o objeto pode ocupar
+MAX_LINHA               EQU  31     ; maior valor de linha dentro do ecrã visível
 MAX_COLUNA_ASTEROIDE    EQU  59     ; numero da coluna mais à direita que permite desenhar um asteroide completo
 PROXIMO_ASTEROIDE       EQU  2      ; valor que é preciso adicionar à tabela de controlo de asteroides para 
                                     ; obter a tabela do próximo asteroide
@@ -191,6 +192,11 @@ SP_game_over:
 
     STACK 100H
 SP_sonda:
+
+;    STACK 100H
+;SP_colisao_sonda_asteroide:
+
+
 ; LOCKS dos diferentes processos e rotinas
 
 tecla_carregada:
@@ -229,7 +235,7 @@ movimenta_gera_sonda:
                         ; se estiver a 4 movimenta as sondas disparadas
 
 
-;testa_colisao:          ; controla o processo da testagem de possíveis colisões
+;colisao_sonda_asteroide:          ; controla o processo da testagem de possíveis colisões
 ;    LOCK 0
 
 
@@ -313,25 +319,25 @@ posicao_asteroide_0:
 
     WORD 0          ; variável que guarda a linha do asteroide no momento
     WORD 0          ; variável que guarda a coluna do asteroide no momento
-    WORD 0          ; variável que guarda o incremento/decremento para o movimento
+
 
 posicao_asteroide_2:
 
     WORD 0          
     WORD 0          
-    WORD 0
+
 
 posicao_asteroide_4:
 
     WORD 0          
     WORD 0          
-    WORD 0
+
 
 posicao_asteroide_6:
 
     WORD 0          
     WORD 0          
-    WORD 0
+
 
 ; * tabelas de controlo de cada asteroide 
 ; têm nomes com números pares para cada um dos seus números poder corresponder a um 
@@ -342,8 +348,9 @@ controlo_asteroide_0:
                             ; ou não (0), ou se é para apagar o asteroide (-1) 
     WORD posicao_asteroide_0    ; posição do 1º asteroide (asteroide_0)
     WORD 0                  ; tipo de tabela do asteroide (irá depois ser alterada para minerável ou não) 
-    WORD 0                  ; indica se este asteroide já foi desenhado alguma vez ou não 
+    WORD 0                  ; indica qual a tabela de posição incial/incremento foi atribuída ao asteroide 
     WORD 1                  ; indica o ecra de pixeis onde o asteroide se encontra
+    WORD 0                  ; indica se este asteroide já foi desenhado alguma vez ou não
 
 controlo_asteroide_2:
     WORD 0                  
@@ -351,6 +358,7 @@ controlo_asteroide_2:
     WORD 0
     WORD 0                  
     WORD 2
+    WORD 0
 
 controlo_asteroide_4:
     WORD 0                  
@@ -358,13 +366,14 @@ controlo_asteroide_4:
     WORD 0
     WORD 0      
     WORD 3            
-
+    WORD 0
 controlo_asteroide_6:
     WORD 0                  
     WORD posicao_asteroide_6
     WORD 0
     WORD 0
     WORD 4
+    WORD 0
 
 ; * tabela de controlo de todos os asteroides
 controlo_asteroides:        
@@ -1207,6 +1216,7 @@ rot_atualiza_posicao:
     PUSH R1
     PUSH R5
     PUSH R6
+    PUSH R7
     PUSH R8
     PUSH R9
 
@@ -1230,22 +1240,25 @@ rot_atualiza_posicao:
         
         JMP fim_atualiza_posicao
 
-    proxima_posicao_asteroide:  
-        MOV R6, [R9]                        ; acede à tabela de controlo do asteroide ativo no momento
-        MOV R5, [R6+2]                      ; acede à tabela de posição do asteroide
+    
+    proxima_posicao_asteroide:
+        MOV R6, [R9]                    ; acede à tabela de controlo do asteroide ativo no momento
+        MOV R5, [R6+2]                  ; acede à tabela de posição do asteroide
         MOV R3, [R5]                    ; guarda o endereço da linha do asteroide 
-        MOV R6, [R5+2]                  ; guarda o endereço da coluna do asteroide 
-        MOV R1, [R5+4]                  ; obtém incremento/decremento coluna
+        MOV R7, [R5+2]                  ; guarda o endereço da coluna do asteroide 
+        MOV R1, [R6+6]                  ; obtém a tabela que contém a posição inicial e o incremento/decremento
+        MOV R8, [R1+2]                  ; obtém o incremento/decremento
         ADD R3, INCREMENTO              ; incrementa a linha (qualquer que seja a coluna o asteroide desce sempre +1 linha)
-        ADD R6, R1                      ; incrementa/decrementa a coluna
+        ADD R7, R8                      ; incrementa/decrementa a coluna
         MOV [R5], R3                    ; guarda a nova linha
-        MOV [R5+2],R6                   ; guarda a nova coluna
+        MOV [R5+2],R7                   ; guarda a nova coluna
 
 
     
 fim_atualiza_posicao:
     POP R9
     POP R8
+    POP R7
     POP R6
     POP R5
     POP R1
@@ -1345,7 +1358,7 @@ spawn_asteroides:
     MOV R10, [R5]               ; guarda o estado do asteróide
     CMP R10, 0                   ; verifica se esse asteroide já existe (se o estado tiver a 0 não existe)
     JNZ  incrementa_compara     ; no caso de já existe passa à tabela do próximo asteroide
-    CALL rot_inicia_asteroide
+    CALL rot_inicia_asteroide   ; desenha cada asteroide na sua posição inicial de acordo com a tabela de posições
 
     incrementa_compara:
         ADD R9, PROXIMO_ASTEROIDE   ; incrementa R9 por 2 (próxima word)
@@ -1355,17 +1368,25 @@ spawn_asteroides:
     MOV R9, controlo_asteroides
 
 loop_movimento:
+    CALL rot_testa_colisao_nave     ; verifica se o asteroide colidiu com a nave
+    CMP R6, COLISAO                 ; se houver colisão irá para o game over
+    JZ gameover_asteroides
+                                    ; se não houver colisão continua o movimento
+    CALL rot_inicia_asteroide       ; apaga o asteroide da posição atual para poder desenhar na próxima
     
-    CALL rot_inicia_asteroide       ; desenha o asteroide na nova posição
-    CALL rot_atualiza_posicao       ; incrementa a posição diagonalmente (+1 coluna +1 linha)
-    CALL rot_inicia_asteroide
-    ;CALL rot_testa_colisoes
-    
-    ADD R9, PROXIMO_ASTEROIDE
-    CMP R9, R11
-    JLE loop_movimento 
+    CALL rot_testa_limites          ; verifica se o asteroide chegou ao limite do ecrã
+    CMP R5, 1                       
+    JZ proc_asteroides              ; se chegou ao limite vai desenhá-lo nalguma posição inicial
 
-    JMP proc_asteroides
+    CALL rot_atualiza_posicao       ; incrementa a posição diagonalmente (+1 coluna +1 linha) 
+    CALL rot_inicia_asteroide       ; desenha o asteroide na nova posição
+    
+    incrementa:
+        ADD R9, PROXIMO_ASTEROIDE       ; incrementa R9 de modo ao seu endereço apontar para o próximo asteroide
+        CMP R9, R11
+        JLE loop_movimento              ; se ainda não tiver percorrido todos os asteroides vao para o próximo
+
+    JMP proc_asteroides             ; no caso de já ter visto todos os asteroides
 
 pause_asteroides:
     MOV R5, [jogo_pausado]
@@ -1450,7 +1471,8 @@ fim_apaga_asteroide_gameover:
 
 
 rot_inicia_asteroide:
-
+    PUSH R0 
+    PUSH R1
     PUSH R3
     PUSH R5
     PUSH R6
@@ -1501,15 +1523,14 @@ rot_inicia_asteroide:
         muda_estado_tabela:
             MOV R11, 1           ; MOV auxiliar
             MOV [R5+4], R11      ; altera o estado da tabela de 0 para 1 (utilizada por um asteroide)
-        
+            MOV [R10+6], R5      ; guarda esta tabela na tabela de controlo do asteroide
+
         define_coluna_inicial:
             
             MOV R6, [R10+2]      ; guarda o endereço da tabela de posição do asteroide
             MOV R3, [R5]         ; MOV auxiliar
             MOV [R6+2], R3       ; define a coluna inicial do asteroide retirando esse valor da tabela que contém a coluna e o incremento 
-            MOV R3, [R5+2]       ; MOV auxiliar
-            MOV [R6+4], R3       ; guarda o incremento da tabela escolhida na tabela posição do asteroide
-    
+                    
     MOV R0, 1       ; MOV auxiliar
     MOV [R10], R0   ; atualiza a variável de estado do asteroide para 1 (existe)
     ; fim cria_asteroide
@@ -1521,7 +1542,7 @@ rot_inicia_asteroide:
     ; o R10 (endereço inicial da tabela controlo que aponta para a primeira word)
     ; é obtido logo ao início desta rotina, logo dá para o reutilizar.
     obtem_dados_tabela_controlo:  
-        MOV R8, [R10+2]         ; guarda a tabela posição guardada na segunda word da tabela de controlo
+        MOV R8, [R10+2]         ; guarda o endereço da tabela posição guardada na segunda word da tabela de controlo
         MOV R7, [R8]            ; obtém a linha do asteroide
         MOV R4, [R8+2]          ; obtém a coluna do asteroide
         MOV R2, [R10+4]         ; lê qual a tabela do asteroide a desenhar
@@ -1534,6 +1555,8 @@ fim_inicia_asteroide:
     POP R6
     POP R5
     POP R3
+    POP R1
+    POP R0
     RET
 
 ; **********************************************************************
@@ -1616,6 +1639,19 @@ pause_sonda:
 game_over_sonda:
     MOV R0, [game_over]             ; bloqueia o processo quando o jogo termina
     JMP sonda
+
+
+; **********************************************************************
+; Processo
+;
+; painel_nave - Processo que lê o relógio da nave e muda o lock int_painel_nave
+;               para que seja possível mudar as cores do painel da nave
+;		
+;       R0, R1 - largura do painel e altura do painel, respetivamente
+;		R2 - endereço da tabela das cores definida no início 
+;       R4, R7 - linha e coluna do painel, respetivamente
+; **********************************************************************
+
 
 
 
@@ -1718,6 +1754,13 @@ rot_gera_sonda:
     POP R0
     RET
 
+;; **********************************************************************
+;; Rotina 
+;; - DESCRIÇÃO
+;;  
+;; 
+;;  
+;; **********************************************************************
 
 
 rot_apaga_sondas_gameover:
@@ -1767,17 +1810,90 @@ fim_apaga_sonda_gameover:
     POP R1
     RET
 
+
 ;; **********************************************************************
 ;; Rotina 
-;; - desenha a sonda na posição inicial de acordo com a tecla carregada (0,1,2)
-;;  
-;; 
+;; - verifica se a coluna do asteroide está no intervalo das colunas da nave
+;; - se a linha do asteroides corresponder à linha anterior da linha da nave existe colisão,
+;;   pois esta rotina é chamada no movimento antes de atualizar a posição
+;; RETORNA: se houver colisão, R6 como estado do jogo (R6 = colisão)
 ;;  
 ;; **********************************************************************
-;rot_testa_colisoes:
-;
-;    MOV R9, controlo_sondas     ; guarda o endereço da tabela em R9
-;    MOV R5, 
+rot_testa_colisao_nave:
+    PUSH R0
+    PUSH R1
+    PUSH R5
+    PUSH R7
+
+    MOV R0, [R9]        ; acede à tabela de controlo do asteroide a usar no momento
+    MOV R6, [R0+6]      ; guarda o endereço da tabela da posição/incremento do asteroide
+    
+    ; as próximas duas comparações servem para vermos se o asteroide é um dos que começa
+    ; no meio e anda para uma das diagonais, se sim então nunca irá bater na nave
+    MOV R5, inicio_meio_move_esquerda   ; guarda o endereço desta tabela para comparar
+    CMP R5, R6
+    JZ fim_testa_colisao_nave
+
+    MOV R5, inicio_meio_move_direita    ; guarda o endereço desta tabela para comparar
+    CMP R5, R6
+    JZ fim_testa_colisao_nave
+
+    ; Como sabemos que os asteroides que andam noutros sentidos vão todos para à nave se
+    ; não forem destruídos, basta comparar a sua linha com a linha anterior à linha da nave
+    testa_colisao:
+        MOV R1, [R0+2]                  ; guarda o endereço da tabela de posição do asteroide
+        MOV R7, [R1]                    ; guarda a linha do asteroide no momento 
+        ADD R7, 4                       ; passa à última linha do asteroide
+        MOV R5, LINHA_NAVE              ; guarda a linha da nave em R5
+        SUB R5, 1                       ; passa à linha anterior da nave
+        CMP R7, R5                      ; compara a linha do asteroide com a linha anterior da nave
+        JNZ fim_testa_colisao_nave      ; no caso de não haver colisão 
+        MOV R6, COLISAO                 ; no caso de haver colisão muda o estado do jogo para colisão
+        MOV [estado_jogo], R6           ; o estado do jogo passa a colisão
+        MOV [game_over], R6             ; desbloqueia o proc_fim_jogo
+
+fim_testa_colisao_nave:
+    POP R7
+    POP R5
+    POP R1
+    POP R0
+
+
+;; **********************************************************************
+;; Rotina 
+;; - verifica se um asteroide chegou ao limite do ecrã ou não (se a linha for igual a 31)
+;; RETORNA: R5 com 1 se chegou ao limite ou 0 se não chegou
+;; **********************************************************************
+rot_testa_limites:
+    PUSH R0
+    PUSH R1
+    PUSH R4
+    PUSH R7
+    PUSH R8
+
+    MOV R5, 0           ; inicia a variável que indica se chegou ao limite
+    MOV R0, [R9]        ; acede à tabela de controlo do asteroide a usar no momento
+    MOV R1, [R0+2]      ; guarda a tabela da posição do asteroide
+    MOV R7, [R1]        ; guarda a linha do asteroide
+    MOV R4, MAX_LINHA   ; guarda a linha máxima para comparar à do asteroide
+    CMP R7, R4
+    JNZ fim_testa_limites
+
+    chegou_limite:
+        MOV R5, 1          ; se chegou ao limite R5 passa para 1
+        MOV R4, 0          ; MOV auxiliar
+        MOV [R0], R4       ; muda o estado do asteroide para 0 para indicar que vai deixar de existir
+        MOV [R1], R4       ; reinicia a linha do asteroide a 0 
+        MOV R8, [R0+6]     ; guarda endereço da tabela da posição inicial e incremento do asteroide
+        MOV [R8+4], R4     ; altera o estado dessa tabela para 0
+
+fim_testa_limites:
+    POP R8 
+    POP R7
+    POP R4
+    POP R1
+    POP R0
+    RET
 
 ;; **********************************************************************
 ;; Rotina 
