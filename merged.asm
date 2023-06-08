@@ -50,6 +50,8 @@ SELECIONA_CENARIO_FUNDO  	EQU COMANDOS + 42H		; endereço do comando para seleci
 SELECIONA_CENARIO_FRONTAL   EQU COMANDOS + 46H		; endereço do comando para selecionar uma imagem frontal
 TOCA_SOM					EQU COMANDOS + 5AH		; endereço do comando para tocar um som
 APAGA_CENARIO_FRONTAL       EQU COMANDOS + 44H      ; endereço do comando para apagar o cenário frontal
+SELECIONA_ECRA_PIXEIS       EQU COMANDOS + 04H     ; endereço do comando para selecionar o ecrã de pixeis
+
 
 ; * Constantes - posição
 LINHA_ASTEROIDE         EQU  0      ; 1ª linha do asteroide 
@@ -447,7 +449,7 @@ PLACE   0                     ; o código tem de começar em 0000H
 inicio:
 
 
-    MOV  SP, SP_inicial		; inicializa SP para a palavra a seguir à última da pilha
+    MOV SP, SP_inicial		; inicializa SP para a palavra a seguir à última da pilha
     MOV BTE, tabela_rot_int ; inicializa BTE (registo de Base da Tabela de Exceções)                        
     
     MOV  [APAGA_AVISO], R1	; apaga o aviso de nenhum cenário selecionado (o valor de R1 não é relevante)
@@ -688,8 +690,8 @@ proc_fim_jogo:
 perdeu_sem_energia:
 
     MOV R4, IMAGEM_SEMENERGIA           ; Caso tenha perdido por falta de energia
-    MOV [APAGA_ECRÃ], R4
-    MOV [SELECIONA_CENARIO_FUNDO], R4   ; Muda o fundo do ecrã e toca o som especifico
+    ;MOV [APAGA_ECRÃ], R4
+    MOV [SELECIONA_CENARIO_FRONTAL], R4   ; Muda o fundo do ecrã e toca o som especifico
     ;;;;;SOM    
     JMP verifica_recomeca_jogo          ; espera até carregar na tecla de reiniciar o jogo (C)
 
@@ -751,6 +753,7 @@ rot_inicia_jogo:
     MOV R4, JOGO
     MOV [estado_jogo], R4              ; muda o estado do jogo para JOGO
     
+    CALL rot_apaga_asteroides_gameover
     MOV R4, IMAGEM_JOGO                ; muda o fundo do ecrã e toca o som especifico
     MOV [APAGA_ECRÃ], R4
     MOV [APAGA_CENARIO_FRONTAL], R4
@@ -770,6 +773,8 @@ rot_inicia_jogo:
     CALL rot_desenha_asteroide_e_nave   ; desenha a nave
     MOV R2, DEF_ASTEROIDE_N_MINERAVEL   ; guarda qual a próxima tabela a ser desenhada 
     CALL rot_desenha_asteroide_e_nave   ; desenha o asteroide se ainda não estiver desenhado
+
+
 
     MOV [jogo_pausado], R4              ; desbloqueia os processos essenciais ao jogo
     MOV [game_over], R4
@@ -1184,6 +1189,7 @@ rot_converte_Hex_Decimal:
 rot_atualiza_posicao:
     PUSH R0
     PUSH R1
+    PUSH R3
     PUSH R5
     PUSH R6
     PUSH R8
@@ -1227,6 +1233,7 @@ fim_atualiza_posicao:
     POP R8
     POP R6
     POP R5
+    POP R3
     POP R1
     POP R0
     RET
@@ -1298,7 +1305,15 @@ PROCESS SP_asteroide        ; indicação de que a rotina que se segue é um pro
 							; com indicação do valor para inicializar o SP
     
 proc_asteroides:
+
+    MOV R8, [int_asteroide]         ; bloqueia o lock do asteroide para só andar à medida do relógio
     
+    MOV R5, [estado_jogo]           ; verifica se o jogo está pausado ou se já terminou
+    CMP R5, PAUSA                   ; e bloqueia o processo caso tal aconteça
+    JZ pause_asteroides
+    CMP R5, JOGO
+    JNZ gameover_asteroides
+       
     MOV R3, tabela_geral_posicao        ; guarda o endereço da tabela das combinações de posições possíveis
     MOV R9, controlo_asteroides        ; guarda o endereço da tabela de controlo do primeiro asteroide(asteroide0)
     MOV R11, R9
@@ -1324,29 +1339,81 @@ spawn_asteroides:
 
 loop_movimento:
     
-    CALL rot_inicia_asteroide    ; desenha o asteroide na nova posição
-    CALL rot_atualiza_posicao            ; incrementa a posição diagonalmente (+1 coluna +1 linha)
+    CALL rot_inicia_asteroide       ; desenha o asteroide na nova posição
+    CALL rot_atualiza_posicao       ; incrementa a posição diagonalmente (+1 coluna +1 linha)
     CALL rot_inicia_asteroide
-    CALL rot_testa_colisoes
+    ;CALL rot_testa_colisoes
     
     ADD R9, PROXIMO_ASTEROIDE
     CMP R9, R11
     JLE loop_movimento 
 
-
-    MOV R8, [int_asteroide]         ; bloqueia o lock do asteroide para só andar à medida do relógio
     JMP proc_asteroides
 
-    pause_asteroides:
-        MOV R5, [jogo_pausado]
-        JMP spawn_asteroides
+pause_asteroides:
+    MOV R5, [jogo_pausado]
+    JMP proc_asteroides
 
-    gameover_asteroides:
-        MOV R5, [game_over]
-        JMP spawn_asteroides  
+gameover_asteroides:
+    
+    MOV R5, [game_over]
+    JMP proc_asteroides  
 
 
+; **********************************************************************
+; Rotina
+; Apaga os asteróides existentes no painel
+; Coloca as variaveis de modo a estarem prontas para o proximo jogo, iniciando as para a posição inicial
+; **********************************************************************
 
+rot_apaga_asteroides_gameover:
+    PUSH R1
+    PUSH R3
+    PUSH R5
+    PUSH R9
+    PUSH R10
+    PUSH R11
+    PUSH R4
+
+    MOV R9, controlo_asteroides
+    MOV R3, tabela_geral_posicao
+    MOV R11, R9
+    ADD R11, 6                      ; guarda o endereço máximo da tabela controlo contida em R9 (limite)
+
+apaga_asteroide:
+
+    CALL rot_inicia_asteroide       ; apaga o asteroide
+
+    MOV R5, [R9]                    ; guarda o endereço da tabela de um asteroide
+    MOV R10, [R5]                   ; guarda o estado do asteróide
+
+    MOV R10, 0                      ; coloca o estado do asteroide a 0
+    MOV [R5], R10                   ; guarda o estado do asteroide na tabela de controlo
+    MOV R4, [R5]
+    MOV R0, [R5+2]                  ; guarda o endereço da tabela de posições do asteroide
+    MOV [R0], R10                   ; coloca o asteroide na linha 0
+
+    MOV R1, [R3]                    ; guarda o endereço da tabela de posições
+    MOV [R1+4], R10                 ; coloca O estado a 0
+    ADD R3, 2                       ; incrementa o endereço da tabela de posições
+    ADD R9, PROXIMO_ASTEROIDE
+    CMP R9, R11
+
+    MOV R4, [R5]
+    JLE apaga_asteroide
+                                   ; faz mais uma vez para a ultima posicao do asteroide
+    MOV R1, [R3]                   ; guarda o endereço da tabela de posições
+    MOV [R1+4],R10                 ; coloca O estado a 0
+
+fim_apaga_asteroide_gameover:
+    POP R4
+    POP R11
+    POP R10
+    POP R9
+    POP R5
+    POP R3
+    POP R1
+    RET
 
 ;; **********************************************************************
 ;; Rotina 
@@ -1638,10 +1705,10 @@ rot_gera_sonda:
 ;; 
 ;;  
 ;; **********************************************************************
-rot_testa_colisoes:
-
-    MOV R9, controlo_sondas     ; guarda o endereço da tabela em R9
-    MOV R5, 
+;rot_testa_colisoes:
+;
+;    MOV R9, controlo_sondas     ; guarda o endereço da tabela em R9
+;    MOV R5, 
 
 ;; **********************************************************************
 ;; Rotina 
