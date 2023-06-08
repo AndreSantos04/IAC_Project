@@ -343,24 +343,28 @@ controlo_asteroide_0:
     WORD posicao_asteroide_0    ; posição do 1º asteroide (asteroide_0)
     WORD 0                  ; tipo de tabela do asteroide (irá depois ser alterada para minerável ou não) 
     WORD 0                  ; indica se este asteroide já foi desenhado alguma vez ou não 
+    WORD 1                  ; indica o ecra de pixeis onde o asteroide se encontra
 
 controlo_asteroide_2:
     WORD 0                  
     WORD posicao_asteroide_2
     WORD 0
     WORD 0                  
+    WORD 2
 
 controlo_asteroide_4:
     WORD 0                  
     WORD posicao_asteroide_4
     WORD 0
-    WORD 0                  
+    WORD 0      
+    WORD 3            
 
 controlo_asteroide_6:
     WORD 0                  
     WORD posicao_asteroide_6
     WORD 0
     WORD 0
+    WORD 4
 
 ; * tabela de controlo de todos os asteroides
 controlo_asteroides:        
@@ -433,7 +437,7 @@ inicio_direita_move_esquerda:
 
 ; Tabela que será acedida para determinar a posição do asteróide a desenhar
 tabela_geral_posicao:
-    WORD inicio_esquerda_move_direita
+    WORD inicio_esquerda_move_direita    
     WORD inicio_meio_move_esquerda
     WORD inicio_meio_move_baixo
     WORD inicio_meio_move_direita
@@ -701,8 +705,7 @@ perdeu_sem_energia:
 perdeu_colisao:
 
     MOV R4, IMAGEM_COLISAO              ; Caso tenha perdido por uma colisao com a nave
-    MOV [APAGA_ECRÃ], R4
-    MOV [SELECIONA_CENARIO_FUNDO], R4   ; Muda o fundo do ecrã e toca o som especifico
+    MOV [SELECIONA_CENARIO_FRONTAL], R4   ; Muda o fundo do ecrã e toca o som especifico
     ;;;;;SOM
     JMP verifica_recomeca_jogo          ; espera até carregar na tecla de reiniciar o jogo (C)
     
@@ -734,6 +737,8 @@ verifica_recomeca_jogo:
     JMP verifica_recomeca_jogo  ; Se não carregou, continua a verificar até se carregar
 
 recomeca_jogo:
+    CALL rot_apaga_asteroides_gameover
+    CALL rot_apaga_sondas_gameover
 
     CALL rot_inicia_jogo        ; Recomeca o jogo
 
@@ -756,7 +761,6 @@ rot_inicia_jogo:
     MOV R4, JOGO
     MOV [estado_jogo], R4              ; muda o estado do jogo para JOGO
     
-    CALL rot_apaga_asteroides_gameover
     MOV R4, IMAGEM_JOGO                ; muda o fundo do ecrã e toca o som especifico
     MOV [APAGA_ECRÃ], R4
     MOV [APAGA_CENARIO_FRONTAL], R4
@@ -828,6 +832,9 @@ rot_desenha_asteroide_e_nave: ; Deposita os valores dos registos abaixo no stack
     JNZ obtem_estado_asteroide       ; se não foi pedida a nave então foi pedido um asteroide
     
     posicao_inicial_nave:
+        MOV R7, 0
+        MOV [SELECIONA_ECRA_PIXEIS], R7 ; seleciona o ecrã dos pixeis onde a nave vai ser desenhada
+
         MOV  R7, LINHA_NAVE			    ; linha da nave
         MOV  R4, COLUNA_NAVE	        ; coluna da nave 
         JMP desenha_asteroide_e_nave
@@ -835,7 +842,10 @@ rot_desenha_asteroide_e_nave: ; Deposita os valores dos registos abaixo no stack
     obtem_estado_asteroide:         ; obtém o estado do asteroide através da sua tabela de controlo
         MOV R11, [R9]               ; guarda o valor da tabela que contém a variável de estado
         MOV R10, [R11]              ; obtém o estado (-1) se for para apagar ou 1 ou 0 se for para desenhar
-        
+        MOV R6, [R11 + 8]            ; obtem o ecra de pixeis onde o asteroide vai ser desenhado
+        MOV [SELECIONA_ECRA_PIXEIS], R6 ; seleciona o ecrã dos pixeis onde o asteroide vai ser desenhado
+
+
     desenha_asteroide_e_nave:   ; desenha o asteroide/nave/sonda(bonecos) a partir da tabela
 
         MOV	R6, [R2]			; obtém a largura do boneco
@@ -995,11 +1005,13 @@ rot_desenha_sonda:
     PUSH R4
     PUSH R7
     PUSH R8
+    PUSH R10
     ; as seis intruções seguintes servem para verificar se existe alguma sonda ou se
     ; é para apagar,de acordo com o explicado na descrição de R10
 
 
-
+    MOV R10, 0          ; seleciona o ecra de pixeis onde a sonda vai ser desenhada
+    MOV [SELECIONA_ECRA_PIXEIS], R10
     MOV R10, [R1 + 8]   ;Estado
 
     posicao_sonda:
@@ -1024,6 +1036,7 @@ rot_desenha_sonda:
         MOV [R1+8], R3      			; Põe R10 a 3 de modo a poder desenhar a próxima sonda
 
     fim_desenho_sonda:  
+    POP R10
     POP R8
     POP R7                   
     POP R4
@@ -1270,6 +1283,9 @@ proc_painel_nave:
     loop_painel:
         YIELD
         
+        MOV R3, 0                   ; seleciona o ecra de pixeis onde vai ser desenhado o painel da nave
+        MOV [SELECIONA_ECRA_PIXEIS], R3 
+
         CALL rot_desenha_pixels_linha   ; muda a primeira linha do painel
         ADD R7, 1                   ; próxima linha
         CALL rot_desenha_pixels_linha   ; muda a segunda linha do painel
@@ -1391,17 +1407,15 @@ apaga_asteroide:
 
     MOV R10, 0                      ; coloca o estado do asteroide a 0
     MOV [R5], R10                   ; guarda o estado do asteroide na tabela de controlo
-    MOV R4, [R5]
     MOV R0, [R5+2]                  ; guarda o endereço da tabela de posições do asteroide
     MOV [R0], R10                   ; coloca o asteroide na linha 0
 
     MOV R1, [R3]                    ; guarda o endereço da tabela de posições
-    MOV [R1+4], R10                 ; coloca O estado a 0
+    MOV [R1+4], R10                 ; coloca o estado a 0
     ADD R3, 2                       ; incrementa o endereço da tabela de posições
     ADD R9, PROXIMO_ASTEROIDE
-    CMP R9, R11
-
-    MOV R4, [R5]
+    
+    CMP R9, R11                     ; verifica se R9 é inferior ao limite da tabela controlo
     JLE apaga_asteroide
                                    ; faz mais uma vez para a ultima posicao do asteroide
     MOV R1, [R3]                   ; guarda o endereço da tabela de posições
@@ -1563,18 +1577,18 @@ sonda:
 disparo_frente:                         
                                         ; se nao existir, cria uma nova sonda
     MOV R1, [R9 + 2]                    ; vai buscar o endereço da tabela de controlo da sonda frente
-    MOV R2, [R1]                        ; Alcance da sonda frente
-    CMP R2, 0
+    MOV R4, [R1]                        ; Alcance da sonda frente
+    CMP R4, 0
     JNZ sonda                           ; se já existir uma sonda (alcance diferente de 0), volta ao início do processo
 
-gera_sonda_frente:                      ;desenha a sonda da posição central
+gera_sonda_frente:                      ; desenha a sonda da posição central
     CALL rot_gera_sonda
     
 disparo_esquerda:                       
                                         
     MOV R1, [R9]                    ; vai buscar o endereço da tabela de controlo da sonda da esquerda
-    MOV R2, [R1]                        ; Alcance da sonda da esquerda
-    CMP R2, 0
+    MOV R4, [R1]                        ; Alcance da sonda da esquerda
+    CMP R4, 0
     JNZ sonda                           ; se já existir uma sonda (alcance diferente de 0), não faz nada
 
 gera_sonda_esquerda:
@@ -1583,8 +1597,8 @@ gera_sonda_esquerda:
 disparo_direita:                            
                 
     MOV R1, [R9 + 4]                    ; vai buscar o endereço da tabela de controlo da sonda direita
-    MOV R2, [R1]                        ; Alcance da sonda frente
-    CMP R2, 0
+    MOV R4, [R1]                        ; Alcance da sonda frente
+    CMP R4, 0
     JNZ sonda                           ; se já existir uma sonda (alcance diferente de 0), volta ao início do processo
 
 gera_sonda_direita:
@@ -1632,11 +1646,11 @@ rot_movimenta_sondas:
         CMP R3, 0                       ; se o alcance for 0, a sonda não existe
 
         ;JZ reinicia_linha_e_coluna                ; passa para a próxima sonda
-
+        JZ proxima_sonda
 
         movimento_sonda:
-            apaga:
-                CALL rot_desenha_sonda       ; apaga a sonda
+     
+            CALL rot_desenha_sonda       ; apaga a sonda
             
             CALL rot_atualiza_posicao       ; atualiza o alcance e a posição da sonda (linha e coluna) 
             CMP R3, 0
@@ -1704,6 +1718,54 @@ rot_gera_sonda:
     POP R0
     RET
 
+
+
+rot_apaga_sondas_gameover:
+    PUSH R1
+    PUSH R3
+    PUSH R5
+    PUSH R9
+    PUSH R10
+    PUSH R11
+    PUSH R4
+
+    MOV R1, controlo_sondas
+    MOV R11, R1
+    ADD R11, 4                      ; guarda o endereço máximo da tabela controlo contida em R9 (limite)
+
+apaga_sondas:
+
+    CALL rot_desenha_sonda       ; apaga o asteroide ---- QUAL E QUE APAGA AS SONDAS??
+
+    MOV R5, [R1]                    ; guarda o endereço da tabela de uma sonda
+    ;MOV R10, [R5+8]                 ; guarda o estado da sonda
+    MOV R10, 0                      ; coloca o estado da sonda a 0
+    MOV [R5+8], R10                 ; guarda o estado da sonda na tabela
+    
+    ;MOV R10, [R5]                   ; guardo o endereco do alcance da sonda
+    MOV R10 , 0                     ; coloca o alcance da sonda a 0
+    MOV [R5], R10                   ; guarda o alcance da sonda na tabela
+
+    MOV R10, LINHA_SONDA
+    MOV [R5+2], R10                 ; coloca as sondas para serem desenhadas na linha inicial
+    MOV R10, [R5 + 10]              ; guarda o valor da coluna inicial onde a sonda deve ser desenhada
+    MOV [R5+4], R10                 ; coloca as sondas para serem desenhadas na coluna inicial
+
+
+    ADD R1, 2                      ; passa para a próxima sonda
+    
+    CMP R1, R11                    ; verifica se R9 é inferior ao limite da tabela controlo
+    JLE apaga_sondas
+
+fim_apaga_sonda_gameover:
+    POP R4
+    POP R11
+    POP R10
+    POP R9
+    POP R5
+    POP R3
+    POP R1
+    RET
 
 ;; **********************************************************************
 ;; Rotina 
