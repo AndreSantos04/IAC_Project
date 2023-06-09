@@ -151,7 +151,7 @@ IMAGEM_TERMINADO        EQU 3
 IMAGEM_SEMENERGIA       EQU 4
 IMAGEM_COLISAO          EQU 5
 
-ECRA_PIXEIS_SONDA_NAVE  EQU 0
+ECRA_PIXEIS_SONDA_NAVE  EQU 4
 
 
 ; *********************************************************************************
@@ -340,7 +340,7 @@ controlo_asteroide_0:
     WORD posicao_asteroide_0    ; posição do 1º asteroide (asteroide_0)
     WORD 0                  ; tipo de tabela do asteroide (irá depois ser alterada para minerável ou não) 
     WORD 0                  ; indica qual a tabela de posição incial/incremento foi atribuída ao asteroide 
-    WORD 1                  ; indica o ecra de pixeis onde o asteroide se encontra
+    WORD 0                  ; indica o ecra de pixeis onde o asteroide se encontra
     WORD 0                  ; indica se este asteroide já foi desenhado alguma vez ou não
 
 controlo_asteroide_2:
@@ -348,7 +348,7 @@ controlo_asteroide_2:
     WORD posicao_asteroide_2
     WORD 0
     WORD 0                  
-    WORD 2
+    WORD 1
     WORD 0
 
 controlo_asteroide_4:
@@ -356,14 +356,14 @@ controlo_asteroide_4:
     WORD posicao_asteroide_4
     WORD 0
     WORD 0      
-    WORD 3            
+    WORD 2           
     WORD 0
 controlo_asteroide_6:
     WORD 0                  
     WORD posicao_asteroide_6
     WORD 0
     WORD 0
-    WORD 4
+    WORD 3
     WORD 0
 
 ; * tabela de controlo de todos os asteroides
@@ -465,6 +465,10 @@ inicio:
 
     MOV R1, TERMINADO
     MOV [estado_jogo], R1 ; iniciamos o programa no estado terminado
+
+    MOV R1, 0
+    MOV [mute], R1            ; Inicializa o jogo com o som ligado
+    MOV [VOLUME_SONS],R1      ; Inicializa o volume do som
     
 
     EI0                   ; ativa as interrupção dos relogios
@@ -474,7 +478,7 @@ inicio:
     EI
 
     CALL proc_teclado    ; Cria o processo teclado
-
+   
 
 espera_inicio_jogo:
     MOV R1, [LOCK_tecla_carregada] ; Verifica se alguma tecla foi carregada, bloqueia até a processa voltar a carregar
@@ -923,7 +927,7 @@ rot_desenha_asteroide_e_nave: ; Deposita os valores dos registos abaixo no stack
     JNZ obtem_estado_asteroide          ; se não foi pedida a nave então foi pedido um asteroide
     
     posicao_inicial_nave:
-        MOV R7, 0
+        MOV R7, ECRA_PIXEIS_SONDA_NAVE
         MOV [SELECIONA_ECRA_PIXEIS], R7 ; seleciona o ecrã dos pixeis onde a nave vai ser desenhada
 
         MOV  R7, LINHA_NAVE			    ; linha da nave
@@ -1026,7 +1030,7 @@ rot_desenha_pixels_linha:       		; desenha os pixels do asteroide/nave a partir
     JNZ preenche_pixel      ; se não, salta
     
     MOV R0, 8               ; guarda o número 8 por ser demasiado grande para adicionar diretamente
-    ;MOV R10, 0              ; se for tabela de cores é para desenhar por isso R10 não pode ser -1     inutil?
+
     ADD R8, R0              ; Guarda em R8 o endereço da última cor da tabela 
 
     preenche_pixel:
@@ -1101,7 +1105,7 @@ rot_desenha_sonda:
 
     MOV R2, DEF_SONDA       ; indica que se vai desenhar uma sonda
 
-    MOV R10, 0          ; seleciona o ecra de pixeis onde a sonda vai ser desenhada
+    MOV R10, ECRA_PIXEIS_SONDA_NAVE          ; seleciona o ecra de pixeis onde a sonda vai ser desenhada
     MOV [SELECIONA_ECRA_PIXEIS], R10
     ;MOV R5, [R1]        ; obtem alcance
     ;CMP R5, 0           ?????????????????????????????????????
@@ -1375,7 +1379,7 @@ PROCESS SP_painel_nave		; indicação de que a rotina que se segue é um process
 proc_painel_nave:
 
 	MOV R2, tabela_cores		; guarda o endereço da tabela das cores para se poder aceder às cores
-;	MOV R3, 8				    ; guarda o número máximo de bits a adicionar ao endereço da tabela das cores     INUTIL
+
 	
     MOV R6, LARGURA_PAINEL_NAVE		; guarda a largura do painel em R0
 	MOV R1, ALTURA_PAINEL_NAVE		; guarda a altura do painel
@@ -1389,7 +1393,7 @@ proc_painel_nave:
     loop_painel:
         YIELD
         
-        MOV R3, 0                       ; seleciona o ecra de pixeis onde vai ser desenhado o painel da nave
+        MOV R3, ECRA_PIXEIS_SONDA_NAVE  ; seleciona o ecra de pixeis onde vai ser desenhado o painel da nave
         MOV [SELECIONA_ECRA_PIXEIS], R3 
 
         CALL rot_desenha_pixels_linha   ; muda a primeira linha do painel
@@ -2129,13 +2133,6 @@ reseta_sondas:
     MOV R10, [R5+8]                 ; guarda o estado da sonda
     CMP R10, 0                      ; se o estado da sonda for 0, a sonda não existe e passa a proxima sonda
     JZ reseta_proxima_sonda
-
-    ;MOV R10, -1
-    ;MOV [R5 + 8], R10                                                              INUTIL
-    ;CALL rot_desenha_sonda          ; apaga o asteroide 
-
-    ;MOV R5, [R1]                    ; guarda o endereço da tabela de uma sonda
-    ;MOV R10, [R5+8]                 ; guarda o estado da sonda
 
     MOV R10, 0                      ; coloca o estado da sonda a 0
     MOV [R5+8], R10                 ; atualiza o estado da sonda na tabela
