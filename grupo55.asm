@@ -475,6 +475,7 @@ inicio:
 
     CALL proc_teclado    ; Cria o processo teclado
 
+
 espera_inicio_jogo:
     MOV R1, [LOCK_tecla_carregada] ; Verifica se alguma tecla foi carregada, bloqueia até a processa voltar a carregar
     MOV R2, TECLA_JOGO_COMECA
@@ -484,6 +485,7 @@ espera_inicio_jogo:
 
 
 inicia:                       ; Cria os diversos processos necessários para o jogo
+
     CALL proc_handle_som      ; Cria o processo que trata do som
     CALL proc_display         ; Cria o processo que irá atualizar o display
     CALL proc_fim_jogo        ; Cria o processo que ira recomecar o jogo apos o mesmo terminar
@@ -574,7 +576,7 @@ proc_handle_som:
     MOV R0, [LOCK_tecla_carregada]  
     MOV R1, TECLA_MUTED         ; verifica se a tecla carregada foi a de mutar o som (F)
 
-    CMP R0, TECLA_MUTED         ; verifica se a tecla carregada foi a de mutar o som (F)
+    CMP R0, R1                  ; verifica se a tecla carregada foi a de mutar o som (F)
     JNZ proc_handle_som
     
     som:
@@ -1925,10 +1927,14 @@ rot_trata_colisao:
         MOV R0, [R5+4]                      ; obtém a tabela que indica o tipo de asteroide
         MOV R8, DEF_ASTEROIDE_MINERAVEL     ; guarda a constante com o endereço da tabela do tipo minerável
         CMP R0, R8                          ; verifica se é minerável ou não
-        ;CERTO: JZ minera_asteroide
-        JZ reinicializa_valores_asteroide
+        JZ minera_asteroide
+
         
     explosao:                               ; no caso de ser não minerável                              
+        MOV R4, SOM_ASTEROIDEDESTRUIDO
+        MOV [TOCA_SOM], R4                  ; toca o som da explosão do asteroide não minerável 
+                                            ; colisao da sonda com asteroide nao mineravel
+        
         MOV R2, DEF_EXPLOSAO_ASTEROIDE
         MOV R8, 1
         MOV [R5], R8
@@ -1936,8 +1942,14 @@ rot_trata_colisao:
         MOV R4, [R10+2]                     ; obtém a coluna do asteroide
         CALL rot_desenha_asteroide_e_nave   ; desenha a explosão no local do asteroide
         JMP reinicializa_valores_asteroide
-    ;minera_asteroide:
-    ;    MOV 
+    minera_asteroide:
+        MOV R4, SOM_ASTEROIDEMINERAVEL
+        MOV [TOCA_SOM], R4                  ; toca o som da colisao da sonda com o asteroide minerável
+        
+        MOV R4, DISPLAY_AUMENTA_ENERGIA
+        MOV [int_energia_display], R4       ; indica que a energia aumentou (25%)
+                                            ; desbloqueia o processo display para atualizar o display
+                                            ; face ao aumento da energia 
 
     ; apagar a explosão e só depois desenhar o asteroide na posição inicial
     reinicializa_valores_asteroide:
