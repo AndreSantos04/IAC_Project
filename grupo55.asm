@@ -11,7 +11,7 @@
 ; C - Começa o jogo
 ; D - Pausa o jogo
 ; E - Terminar o jogo
-
+; F - Muta/Desmuta o som do jogo
 
 
 ; *********************************************************************************
@@ -46,6 +46,8 @@ CONTINUA_SOM_LOOP           EQU COMANDOS + 60H      ; endereço do comando para 
 TERMINA_SOM_LOOP            EQU COMANDOS + 66H      ; endereço do comando para terminar de tocar um som
 TERMINA_TODOS_SONS          EQU COMANDOS + 68H      ; endereço do comando para terminar todos os sons que estejam a tocar
 APAGA_UM_ECRA               EQU COMANDOS + 00H      ; endereço do comando para apagar um ecrã
+MUTA_SONS                   EQU COMANDOS + 50H      ; endereço do comando para colocar o volume a 0
+VOLUME_SONS                 EQU COMANDOS + 52H     ; endereço do comando para retomar o volume dos sons que estao a tocar
 
 ; * Constantes - posição
 LINHA_ASTEROIDE         EQU  0      ; 1ª linha do asteroide 
@@ -104,7 +106,7 @@ TECLA_JOGO_TERMINA        EQU 000EH    ; tecla que termina o jogo
 TECLA_DISPARO_FRENTE      EQU 0001H    ; tecla que dispara para a frente
 TECLA_DISPARO_ESQUERDA    EQU 0000H    ; tecla que dispara para a esquerda
 TECLA_DISPARO_DIREITA     EQU 0002H    ; tecla que dispara para a direita
-
+TECLA_MUTED               EQU 000FH    ; tecla que muda o estado do som
 
 
 JOGO                      EQU 0    ; estado do jogo: jogo
@@ -140,6 +142,7 @@ SOM_TERMINADO           EQU 7
 SOM_JOGO                EQU 8
 SOM_ASTEROIDEMINERAVEL  EQU 9
 
+PLAYING                 EQU 3   ; estado do som: a tocar
 
 IMAGEM_INICIO           EQU 0
 IMAGEM_JOGO             EQU 1
@@ -169,23 +172,29 @@ SP_painel_nave:			; endereço inicial da pilha
     STACK 100H			; espaço reservado para a pilha do processo teclado
 SP_teclado:
 
-STACK 100H			; espaço reservado para a pilha do processo DISPLAY
+    STACK 100H		     ; espaço reservado para a pilha do processo DISPLAY
 SP_display:    
 
     STACK 100H          ; 100H bytes reservados para a pilha do processo "spawn_asteroide"
 SP_asteroide:           ; endereço inicial da pilha
 
-    STACK 100H
+    STACK 100H          ; 100H bytes reservados para a pilha do processo pause
 SP_pause:
 
-    STACK 100H
+    STACK 100H          ; 100H bytes reservados para a pilha do processo gameover
 SP_game_over:
 
-    STACK 100H
+    STACK 100H          ; 100H bytes reservados para a pilha do processo sonda
 SP_sonda:
+
 
     STACK 100H
 SP_colisoes:
+
+    STACK 10H           ; 10H bytes reservados para a pilha do processo som, este processo e muito simples
+SP_handle_som:          ; pelo que nao necessita de muita memoria para a pilha
+
+
 
 
 ; LOCKS dos diferentes processos e rotinas
@@ -196,6 +205,7 @@ LOCK_tecla_carregada:
 							
 LOCK_jogo_pausado:      ; LOCK para comunicar aos processos que o jogo está em pausa
     LOCK 0               
+
 
 int_energia_display:    ; LOCK para bloquear o processo DISPLAY e comunicar qual a alteração a fazer 
     LOCK 0              ; se o LOCK estiver a 0, a energia diminui (RELOGIO DE INTERRUPCAO)
@@ -220,6 +230,10 @@ int_movimenta_gera_sonda:
 LOCK_colisoes:
     LOCK 0              ; LOCK para chamar o processo que verifica se ocorreu colisão sempre que haja possibilidade de tal ocorrer
 
+;colisao_sonda_asteroide:          ; controla o processo da testagem de possíveis colisões
+;    LOCK 0
+
+
 display_HEX:
     WORD 0064H          ; WORD para o valor do display em hexadecimal
 
@@ -231,9 +245,8 @@ tecla:
     WORD 0              ; WORD para a tecla carregada, o valor e o mesmo do LOCK_tecla_carregada, 
                         ; mas nao bloqueia os processo onde e lida
 
-
-
-
+mute:
+    WORD 0              ; WORD para o mute do som (0 - som ligado, 1 - som desligado)
 
 ; Tabela das rotinas de interrupção
 tabela_rot_int:
@@ -445,7 +458,7 @@ inicio:
     
     MOV  [APAGA_AVISO], R1	; apaga o aviso de nenhum cenário selecionado (o valor de R1 não é relevante)
     MOV  [APAGA_ECRÃ], R1	; apaga todos os pixels já desenhados (o valor de R1 não é relevante)
-    MOV [APAGA_CENARIO_FRONTAL], R1 ; apaga o cenário frontal (o valor de R1 não é relevante)
+    MOV  [APAGA_CENARIO_FRONTAL], R1 ; apaga o cenário frontal (o valor de R1 não é relevante)
     MOV	 R1, IMAGEM_INICIO			; cenário de fundo número 0
     MOV  [SELECIONA_CENARIO_FUNDO], R1	; seleciona o cenário de fundo
     
@@ -471,7 +484,7 @@ espera_inicio_jogo:
 
 
 inicia:                       ; Cria os diversos processos necessários para o jogo
-
+    CALL proc_handle_som      ; Cria o processo que trata do som
     CALL proc_display         ; Cria o processo que irá atualizar o display
     CALL proc_fim_jogo        ; Cria o processo que ira recomecar o jogo apos o mesmo terminar
     CALL proc_pause           ; Cria o processo que coloca ou tira o jogo da pausa
@@ -539,8 +552,50 @@ proc_teclado:
         CMP  R0, 0				; há tecla premida?
         JNZ  ha_tecla			; se ainda houver uma tecla premida, espera até não haver
 
-    	JMP	espera_tecla		; esta "rotina" nunca retorna porque nunca termina
+
+        JMP espera_tecla        ; esta "rotina" nunca retorna porque nunca termina
     						    ; Se se quisesse terminar o processo, era deixar o processo chegar a um RET
+
+
+     
+
+
+;**********************************************************************
+; PROCESSO - Handle Som
+;
+; Coloca ou tira o volume dos sons do jogo
+; A word mute indica se o som esta ligado ou nao
+; Se estiver a 0, o som esta ligado, se estiver a 1, o som esta mutado
+;
+; **********************************************************************
+PROCESS SP_handle_som
+
+proc_handle_som:
+    MOV R0, [LOCK_tecla_carregada]  
+    MOV R1, TECLA_MUTED         ; verifica se a tecla carregada foi a de mutar o som (F)
+
+    CMP R0, TECLA_MUTED         ; verifica se a tecla carregada foi a de mutar o som (F)
+    JNZ proc_handle_som
+    
+    som:
+        MOV R1, [mute]          ; verifica se o som esta mutado ou nao
+        CMP R1, 0               ; a WORD mute é 0 se nao estiver mutado e 1 se estiver mutado
+        JZ muta_som
+        
+        MOV R9, 0             
+        MOV [mute], R9          ; se estiver mutado, desmuta, colocando a WORD mute a 0
+        MOV [VOLUME_SONS], R9   ; retoma o volume dos sons
+        JMP proc_handle_som  
+
+    muta_som:
+
+        MOV R9, 1
+        MOV [mute], R9          ; se nao estiver mutado, muta, colocando a WORD mute a 1
+        MOV [MUTA_SONS], R9     ; muta todos os sons que estiverem a tocar
+        JMP proc_handle_som  
+
+
+
 
 ; **********************************************************************
 ; Rotina
@@ -613,10 +668,11 @@ proc_pause:
     
     MOV R0, [LOCK_tecla_carregada] ; bloqueia o processo até uma tecla ser carregada
     MOV R4, [estado_jogo]     ; guarda o estado do jogo
-    MOV R1, TECLA_JOGO_PAUSA
 
+    MOV R1, TECLA_JOGO_PAUSA
     CMP R0, R1                ; verifica se a tecla carregada e a tecla de pausa
     JZ pausa_jogo
+
     JMP proc_pause
     pausa_jogo:
         
@@ -633,7 +689,7 @@ proc_pause:
         MOV [estado_jogo], R4                   ; coloca o jogo em pausa
 
         MOV R4, SOM_PAUSE
-        MOV [TOCA_SOM], R4                      ; toca o som de pausa
+        MOV [TOCA_SOM], R4                     ; toca o som de pausa
 
         MOV R4, IMAGEM_PAUSE                       
         MOV [SELECIONA_CENARIO_FRONTAL], R4     ; coloca o ecrã de pausa
@@ -650,13 +706,16 @@ proc_pause:
        MOV [LOCK_jogo_pausado], R4                  ; desbloqueia os processos que estao bloqueados devido ao jogo estar pausado
 
        MOV R4, SOM_UNPAUSE   
-       MOV [TOCA_SOM], R4                      ; toca o som de retomar o jogo
+       MOV [TOCA_SOM], R4                     ; toca o som de unpause
 
 
         MOV R4, SOM_JOGO
         MOV [CONTINUA_SOM_LOOP], R4           ; retoma a reproduçao do som de jogo em loop
        
         JMP proc_pause
+
+ 
+
 
 
 ; **********************************************************************
@@ -692,7 +751,7 @@ proc_fim_jogo:
     CMP R4, TERMINADO         ; verifica se o jogo já acabou
     JZ verifica_recomeca_jogo ; espera até carregar na tecla de reinciiar o jogo (C)
     
-    ;JMP proc_fim_jogo         inutil?
+
 
 perdeu_sem_energia:
 
@@ -705,7 +764,8 @@ perdeu_sem_energia:
 
 
     MOV R4, SOM_SEMENERGIA
-    MOV [TOCA_SOM], R4                  ; toca o som de fim de jogo por falta de energia
+    MOV [TOCA_SOM], R4                     ; toca o som de fim de jogo por falta de energia
+
 
     JMP verifica_recomeca_jogo          ; espera até carregar na tecla de reiniciar o jogo (C)
 
@@ -715,7 +775,8 @@ perdeu_colisao:
     MOV [TERMINA_SOM_LOOP], R4           ; para o som de jogo em loop
 
     MOV R4, SOM_COLISAOFIM
-    MOV [TOCA_SOM], R4                  ; toca o som de fim de jogo por colisao com a nave
+    MOV [TOCA_SOM], R4                     ; toca o som de fim de jogo por colisao
+
 
     MOV R4, IMAGEM_COLISAO              ; Caso tenha perdido por uma colisao com a nave
     MOV [SELECIONA_CENARIO_FRONTAL], R4   ; Muda o fundo do ecrã e toca o som especifico
@@ -746,7 +807,8 @@ termina_jogo:                   ; Caso tenha saido do jogo ao clicar na tecla de
     MOV [TERMINA_SOM_LOOP], R4  ; para o som de jogo em loop
     
     MOV R4, SOM_TERMINADO
-    MOV [TOCA_SOM], R4          ; toca o som de jogo terminado
+    MOV [TOCA_SOM], R4                     ; toca o som de fim de jogo por sair do jogo
+
 
     JMP verifica_recomeca_jogo  ; espera até carregar na tecla de reiniciar o jogo (C)
 
@@ -798,7 +860,8 @@ rot_inicia_jogo:
                                        ; podem ainda estar a tocar apos se reiniciar o jogo mais rapidamente
 
     MOV R4, SOM_INICIO
-    MOV [TOCA_SOM], R4                 ; toca o som de inicio de jogo
+    MOV [TOCA_SOM], R4                 ; dtoca o som de inicio de jogo em loop
+
 
 
     MOV R4, VALOR_INICIAL_DISPLAY_HEX
@@ -813,11 +876,12 @@ rot_inicia_jogo:
     CALL rot_desenha_asteroide_e_nave   ; desenha a nave
 
 
-
     MOV R4, SOM_JOGO
 
-    ;MOV [TOCA_SOM_LOOP], R4             ; toca o som de jogo em loop até ser parado
- 
+    MOV [TOCA_SOM_LOOP], R4             ; toca o som de jogo em loop até ser parado
+
+fim_inicia_jogo:
+
     MOV [LOCK_jogo_pausado], R4              ; desbloqueia os processos essenciais ao jogo
     MOV [LOCK_game_over], R4
 
@@ -1658,6 +1722,9 @@ disparo_frente:
 
 gera_sonda_frente:                      ; se nao existe, gera uma nova sonda nessa direcao
     CALL rot_gera_sonda
+
+
+
     JMP proc_sonda
 
 disparo_esquerda:                       
@@ -2129,7 +2196,7 @@ rot_testa_colisao_nave:
         JNZ fim_testa_colisao_nave      ; no caso de não haver colisão 
         MOV R6, COLISAO                 ; no caso de haver colisão muda o estado do jogo para colisão
         MOV [estado_jogo], R6           ; o estado do jogo passa a colisão
-        MOV [LOCK_game_over], R6             ; desbloqueia o proc_fim_jogo
+        MOV [LOCK_game_over], R6        ; desbloqueia o proc_fim_jogo
 
 fim_testa_colisao_nave:
     POP R7
@@ -2202,8 +2269,8 @@ rot_gera_aleatorio:
     SHR R0, 4               ; coloca os bits lidos antes (4 a 7) nos bits 0 a 3, de modo a ficar com um valor entre 0 e 15
     MOV R1, R0              ; guarda esse valor em R1
 
-    AND R0, R2               ; isola os 2 bits de menor peso, o que dá 4 hipóteses (00,01,10,11) de 0 a 3
-    MOD R1, R3                ; R1 = resto da divisão de R1 por 5 de modo a ficarmos com 5 hipóteses (0 a 4)
+    AND R0, R2              ; isola os 2 bits de menor peso, o que dá 4 hipóteses (00,01,10,11) de 0 a 3
+    MOD R1, R3              ; R1 = resto da divisão de R1 por 5 de modo a ficarmos com 5 hipóteses (0 a 4)
 
 fim_gera_aleatório:
     POP R6
