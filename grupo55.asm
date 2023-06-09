@@ -8,6 +8,7 @@
 ; 0 - Dispara a sonda da esquerda
 ; 1 - Dispara a sonda do meio
 ; 2 - Dispara a sonda da direita
+; A - Ativa/Desativa o score (desligado por default)
 ; C - Começa o jogo
 ; D - Pausa o jogo
 ; E - Terminar o jogo
@@ -107,7 +108,7 @@ TECLA_DISPARO_FRENTE      EQU 0001H    ; tecla que dispara para a frente
 TECLA_DISPARO_ESQUERDA    EQU 0000H    ; tecla que dispara para a esquerda
 TECLA_DISPARO_DIREITA     EQU 0002H    ; tecla que dispara para a direita
 TECLA_MUTED               EQU 000FH    ; tecla que muda o estado do som
-
+TECLA_SCORES              EQU 000BH    ; tecla que faz mostrar os scores no fim do jogo
 
 JOGO                      EQU 0    ; estado do jogo: jogo
 SEM_ENERGIA               EQU 1    ; estado do jogo: perdeu sem energia
@@ -130,6 +131,9 @@ DISPLAY_ENERGIA_SONDA     EQU 2       ; indica ao processo display que a energia
 
 MOVIMENTACAO_SONDAS       EQU 4        ; valor que indica que ao processo que deve mover as sondas
 
+DESATIVA_SCORE            EQU 0        ; valor que indica que o score nao deve ser atualizado
+ATIVA_SCORE               EQU 1        ; valor que indica que o score deve ser atualizado
+
 ; * Constantes - MEDIA CENTER - SONS/IMAGENS
 SOM_INICIO              EQU 0
 SOM_DISPARO             EQU 1
@@ -151,7 +155,7 @@ IMAGEM_TERMINADO        EQU 3
 IMAGEM_SEMENERGIA       EQU 4
 IMAGEM_COLISAO          EQU 5
 
-ECRA_PIXEIS_SONDA_NAVE  EQU 0
+ECRA_PIXEIS_SONDA_NAVE  EQU 4
 
 
 ; *********************************************************************************
@@ -192,7 +196,7 @@ SP_sonda:
 SP_colisoes:
 
     STACK 10H           ; 10H bytes reservados para a pilha do processo som, este processo e muito simples
-SP_handle_som:          ; pelo que nao necessita de muita memoria para a pilha
+SP_handle_som_score:    ; pelo que nao necessita de muita memoria para a pilha
 
 
 
@@ -233,6 +237,10 @@ LOCK_colisoes:
 ;colisao_sonda_asteroide:          ; controla o processo da testagem de possíveis colisões
 ;    LOCK 0
 
+
+score:
+    WORD 0              ; WORD para o score do jogo
+    WORD 0              ; WORD para verificar se é suposto mostrar o score ou nao (0 - nao mostrar, 1 - mostrar)
 
 display_HEX:
     WORD 0064H          ; WORD para o valor do display em hexadecimal
@@ -349,28 +357,33 @@ controlo_asteroide_0:
     WORD posicao_asteroide_0    ; posição do 1º asteroide (asteroide_0)
     WORD 0                  ; tipo de tabela do asteroide (irá depois ser alterada para minerável ou não) 
     WORD 0                  ; indica qual a tabela de posição incial/incremento foi atribuída ao asteroide 
-    WORD 1                  ; indica o ecra de pixeis onde o asteroide se encontra
+    WORD 0                  ; indica o ecra de pixeis onde o asteroide se encontra
+
+
 
 controlo_asteroide_2:
     WORD 0                  
     WORD posicao_asteroide_2
     WORD 0
     WORD 0                  
-    WORD 2
+    WORD 1
+
+
 
 controlo_asteroide_4:
     WORD 0                  
     WORD posicao_asteroide_4
     WORD 0
     WORD 0      
-    WORD 3            
+    WORD 2                   
+
 
 controlo_asteroide_6:
     WORD 0                  
     WORD posicao_asteroide_6
     WORD 0
     WORD 0
-    WORD 4
+    WORD 3
 
 
 ; * tabela de controlo de todos os asteroides
@@ -472,6 +485,10 @@ inicio:
 
     MOV R1, TERMINADO
     MOV [estado_jogo], R1 ; iniciamos o programa no estado terminado
+
+    MOV R1, 0
+    MOV [mute], R1            ; Inicializa o jogo com o som ligado
+    MOV [VOLUME_SONS],R1      ; Inicializa o volume do som
     
 
     EI0                   ; ativa as interrupção dos relogios
@@ -481,7 +498,7 @@ inicio:
     EI
 
     CALL proc_teclado    ; Cria o processo teclado
-
+   
 
 espera_inicio_jogo:
     MOV R1, [LOCK_tecla_carregada] ; Verifica se alguma tecla foi carregada, bloqueia até a processa voltar a carregar
@@ -491,15 +508,15 @@ espera_inicio_jogo:
     CALL rot_inicia_jogo      ; Se sim, inicia o jogo
 
 
-inicia:                       ; Cria os diversos processos necessários para o jogo
+inicia:                        ; Cria os diversos processos necessários para o jogo
 
-    CALL proc_handle_som      ; Cria o processo que trata do som
-    CALL proc_display         ; Cria o processo que irá atualizar o display
-    CALL proc_fim_jogo        ; Cria o processo que ira recomecar o jogo apos o mesmo terminar
-    CALL proc_pause           ; Cria o processo que coloca ou tira o jogo da pausa
-    CALL proc_sonda           ; Cria o processo que dispara e movimenta as sondas 
-    CALL proc_asteroides      ; Cria o processo que cria e movimenta os asteroides
-    CALL proc_painel_nave     ; Cria o processo que atualiza o painel da nave
+    CALL proc_handle_som_score ; Cria o processo que trata do som e do score do jogo
+    CALL proc_display          ; Cria o processo que irá atualizar o display
+    CALL proc_fim_jogo         ; Cria o processo que ira recomecar o jogo apos o mesmo terminar
+    CALL proc_pause            ; Cria o processo que coloca ou tira o jogo da pausa
+    CALL proc_sonda            ; Cria o processo que dispara e movimenta as sondas 
+    CALL proc_asteroides       ; Cria o processo que cria e movimenta os asteroides
+    CALL proc_painel_nave      ; Cria o processo que atualiza o painel da nave
     CALL proc_colisao_sonda_asteroide
 
 
@@ -577,14 +594,19 @@ proc_teclado:
 ; Se estiver a 0, o som esta ligado, se estiver a 1, o som esta mutado
 ;
 ; **********************************************************************
-PROCESS SP_handle_som
+PROCESS SP_handle_som_score
 
-proc_handle_som:
-    MOV R0, [LOCK_tecla_carregada]  
-    MOV R1, TECLA_MUTED         ; verifica se a tecla carregada foi a de mutar o som (F)
-
+proc_handle_som_score:
+    MOV R0, [LOCK_tecla_carregada]  ; bloqueia o processo ate uma tecla ser carregada
+    MOV R1, TECLA_MUTED         
+    
     CMP R0, R1                  ; verifica se a tecla carregada foi a de mutar o som (F)
-    JNZ proc_handle_som
+    JZ som                      ; se sim, vai para a rotina que trata do som
+    
+    MOV R2, TECLA_SCORES        
+    CMP R0, R2                  ; verifica se a tecla carregada foi a de ver os scores (S)
+    JZ ativa_score              ; se sim, vai para a rotina que trata do score
+    JMP proc_handle_som_score
     
     som:
         MOV R1, [mute]          ; verifica se o som esta mutado ou nao
@@ -594,16 +616,28 @@ proc_handle_som:
         MOV R9, 0             
         MOV [mute], R9          ; se estiver mutado, desmuta, colocando a WORD mute a 0
         MOV [VOLUME_SONS], R9   ; retoma o volume dos sons
-        JMP proc_handle_som  
+        JMP proc_handle_som_score  
 
     muta_som:
 
         MOV R9, 1
         MOV [mute], R9          ; se nao estiver mutado, muta, colocando a WORD mute a 1
         MOV [MUTA_SONS], R9     ; muta todos os sons que estiverem a tocar
-        JMP proc_handle_som  
+        JMP proc_handle_som_score  
 
+    ativa_score:
+        MOV R1, [score+2]        ; verifica se o estado do score (0 - nao mostra, 1 - mostra)
+        CMP R1, 0               ; se estiver a 0, ativa o score
+        JNZ desativa_score      ; se estiver a 1, desativa o score
 
+        MOV R9, ATIVA_SCORE
+        MOV [score+2], R9       ; ativa o score
+        JMP proc_handle_som_score
+    
+    desativa_score:
+        MOV R9, DESATIVA_SCORE
+        MOV [score+2], R9       ; desativa o score
+        JMP proc_handle_som_score
 
 
 ; **********************************************************************
@@ -758,7 +792,7 @@ proc_fim_jogo:
     JZ perdeu_colisao
 
     CMP R4, TERMINADO         ; verifica se o jogo já acabou
-    JZ verifica_recomeca_jogo ; espera até carregar na tecla de reinciiar o jogo (C)
+    JZ verifica_display_score ; espera até carregar na tecla de reinciiar o jogo (C)
     
 
 
@@ -776,7 +810,7 @@ perdeu_sem_energia:
     MOV [TOCA_SOM], R4                     ; toca o som de fim de jogo por falta de energia
 
 
-    JMP verifica_recomeca_jogo          ; espera até carregar na tecla de reiniciar o jogo (C)
+    JMP verifica_display_score          ; espera até carregar na tecla de reiniciar o jogo (C)
 
 perdeu_colisao:
 
@@ -792,7 +826,7 @@ perdeu_colisao:
     
 
 
-    JMP verifica_recomeca_jogo          ; espera até carregar na tecla de reiniciar o jogo (C)
+    JMP verifica_display_score          ; espera até carregar na tecla de reiniciar o jogo (C)
     
 verifica_tecla:
 
@@ -816,18 +850,28 @@ termina_jogo:                   ; Caso tenha saido do jogo ao clicar na tecla de
     MOV [TERMINA_SOM_LOOP], R4  ; para o som de jogo em loop
     
     MOV R4, SOM_TERMINADO
-    MOV [TOCA_SOM], R4                     ; toca o som de fim de jogo por sair do jogo
+    MOV [TOCA_SOM], R4            ; toca o som de fim de jogo por sair do jogo
+
+    JMP verifica_display_score  ; espera até carregar na tecla de reiniciar o jogo (C)
+
+verifica_display_score:
+
+    MOV R4, [score +2]            ; verifica se deve mostrar o score no ecrã
+    CMP R4, 0
+    JZ verifica_recomeca_jogo     ; se o score for 0, não mostra o score no ecrã
+
+    MOV R1, [score]               ; guarda o valor do score
+    CALL rot_converte_Hex_Decimal ; converte o score para decimal
+    MOV [DISPLAYS], R5            ; mostra o score no ecrã em decimal
 
 
-    JMP verifica_recomeca_jogo  ; espera até carregar na tecla de reiniciar o jogo (C)
-
-verifica_recomeca_jogo:         ; fica nesta label até carregar na tecla de reiniciar o jogo (C)
+verifica_recomeca_jogo:           ; fica nesta label até carregar na tecla de reiniciar o jogo (C)
 
     MOV R0, TECLA_JOGO_COMECA
     MOV R4, [LOCK_tecla_carregada]   ; bloqueia o processo até carregar voltar a ser carregada uma tecla
 
-    CMP R4, R0                  ; Verifica se carregou na tecla de comecar (C)
-    JZ recomeca_jogo            ; Se carregou, recomeca o jogo
+    CMP R4, R0                    ; Verifica se carregou na tecla de comecar (C)
+    JZ recomeca_jogo              ; Se carregou, recomeca o jogo
 
     JMP verifica_recomeca_jogo  ; Se não carregou, continua a verificar até se carregar
 
@@ -889,9 +933,12 @@ rot_inicia_jogo:
 
     MOV [TOCA_SOM_LOOP], R4             ; toca o som de jogo em loop até ser parado
 
+    MOV R4, 0
+    MOV [score], R4                     ; inicializa o score a 0
+
 fim_inicia_jogo:
 
-    MOV [LOCK_jogo_pausado], R4              ; desbloqueia os processos essenciais ao jogo
+    MOV [LOCK_jogo_pausado], R4         ; desbloqueia os processos essenciais ao jogo
     MOV [LOCK_game_over], R4
 
     POP R4
@@ -934,7 +981,7 @@ rot_desenha_asteroide_e_nave: ; Deposita os valores dos registos abaixo no stack
     JNZ obtem_estado_asteroide          ; se não foi pedida a nave então foi pedido um asteroide
     
     posicao_inicial_nave:
-        MOV R7, 0
+        MOV R7, ECRA_PIXEIS_SONDA_NAVE
         MOV [SELECIONA_ECRA_PIXEIS], R7 ; seleciona o ecrã dos pixeis onde a nave vai ser desenhada
 
         MOV  R7, LINHA_NAVE			    ; linha da nave
@@ -1043,6 +1090,7 @@ rot_desenha_pixels_linha:       		; desenha os pixels do asteroide/nave a partir
     JNZ preenche_pixel      ; se não, salta
     
     MOV R0, 8               ; guarda o número 8 por ser demasiado grande para adicionar diretamente
+
     ADD R8, R0              ; Guarda em R8 o endereço da última cor da tabela 
 
     preenche_pixel:
@@ -1117,12 +1165,9 @@ rot_desenha_sonda:
 
     MOV R2, DEF_SONDA       ; indica que se vai desenhar uma sonda
 
-    MOV R10, 0          ; seleciona o ecra de pixeis onde a sonda vai ser desenhada
+    MOV R10, ECRA_PIXEIS_SONDA_NAVE          ; seleciona o ecra de pixeis onde a sonda vai ser desenhada
     MOV [SELECIONA_ECRA_PIXEIS], R10
-    ;MOV R5, [R1]        ; obtem alcance
-    ;CMP R5, 0           ?????????????????????????????????????
-    ;MOV R10, 0 
-    ; FALTA VERIFICAR A CENA DO ESTADO 
+
     MOV R10, [R1 + 8]   ; guarda o estado da sonda (1 - desenhada/existe, 0 - nao existe, -1 - apagada)
 
     posicao_sonda:
@@ -1391,7 +1436,7 @@ PROCESS SP_painel_nave		; indicação de que a rotina que se segue é um process
 proc_painel_nave:
 
 	MOV R2, tabela_cores		; guarda o endereço da tabela das cores para se poder aceder às cores
-;	MOV R3, 8				    ; guarda o número máximo de bits a adicionar ao endereço da tabela das cores     INUTIL
+
 	
     MOV R6, LARGURA_PAINEL_NAVE		; guarda a largura do painel em R0
 	MOV R1, ALTURA_PAINEL_NAVE		; guarda a altura do painel
@@ -1405,7 +1450,7 @@ proc_painel_nave:
     loop_painel:
         YIELD
         
-        MOV R3, 0                       ; seleciona o ecra de pixeis onde vai ser desenhado o painel da nave
+        MOV R3, ECRA_PIXEIS_SONDA_NAVE  ; seleciona o ecra de pixeis onde vai ser desenhado o painel da nave
         MOV [SELECIONA_ECRA_PIXEIS], R3 
 
         CALL rot_desenha_pixels_linha   ; muda a primeira linha do painel
@@ -1945,6 +1990,10 @@ rot_trata_colisao:
         CALL rot_desenha_sonda
 
     obtem_tipo_asteroide:
+        MOV R0, [score]                     ; guarda o valor do score atual
+        ADD R0, 1                           ; aumenta o score em 1 devio à destruição do asteroide
+        MOV [score], R0                     ; atualiza o score (EXECUTA AS OPERACOES EM HEXADECIMAL)
+
         MOV R0, [R5+4]                      ; obtém a tabela que indica o tipo de asteroide
         MOV R2, DEF_ASTEROIDE_MINERAVEL     ; guarda a constante com o endereço da tabela do tipo minerável
         CMP R0, R2                          ; verifica se é minerável ou não
@@ -2181,13 +2230,6 @@ reseta_sondas:
     MOV R10, [R5+8]                 ; guarda o estado da sonda
     CMP R10, 0                      ; se o estado da sonda for 0, a sonda não existe e passa a proxima sonda
     JZ reseta_proxima_sonda
-
-    ;MOV R10, -1
-    ;MOV [R5 + 8], R10                                                              INUTIL
-    ;CALL rot_desenha_sonda          ; apaga o asteroide 
-
-    ;MOV R5, [R1]                    ; guarda o endereço da tabela de uma sonda
-    ;MOV R10, [R5+8]                 ; guarda o estado da sonda
 
     MOV R10, 0                      ; coloca o estado da sonda a 0
     MOV [R5+8], R10                 ; atualiza o estado da sonda na tabela
