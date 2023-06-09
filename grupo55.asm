@@ -1907,7 +1907,7 @@ rot_testa_colisao_nave:
         JNZ fim_testa_colisao_nave      ; no caso de não haver colisão 
         MOV R6, COLISAO                 ; no caso de haver colisão muda o estado do jogo para colisão
         MOV [estado_jogo], R6           ; o estado do jogo passa a colisão
-        MOV [LOCK_game_over], R6             ; desbloqueia o proc_fim_jogo
+        MOV [LOCK_game_over], R6        ; desbloqueia o proc_fim_jogo
 
 fim_testa_colisao_nave:
     POP R7
@@ -1979,8 +1979,8 @@ rot_gera_aleatorio:
     SHR R0, 4               ; coloca os bits lidos antes (4 a 7) nos bits 0 a 3, de modo a ficar com um valor entre 0 e 15
     MOV R1, R0              ; guarda esse valor em R1
 
-    AND R0, R2               ; isola os 2 bits de menor peso, o que dá 4 hipóteses (00,01,10,11) de 0 a 3
-    MOD R1, R3                ; R1 = resto da divisão de R1 por 5 de modo a ficarmos com 5 hipóteses (0 a 4)
+    AND R0, R2              ; isola os 2 bits de menor peso, o que dá 4 hipóteses (00,01,10,11) de 0 a 3
+    MOD R1, R3              ; R1 = resto da divisão de R1 por 5 de modo a ficarmos com 5 hipóteses (0 a 4)
 
 fim_gera_aleatório:
     POP R6
