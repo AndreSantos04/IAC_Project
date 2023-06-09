@@ -739,7 +739,11 @@
     "moduleDelay" : 5,
     "positionX" : 201,
     "positionY" : 87,
-    "simGuiVisibleInSimulation" : false,
+    "simGuiVisibleInSimulation" : true,
+    "simGuiXRelative" : 0,
+    "simGuiYRelative" : 0,
+    "simGuiWidth" : 968,
+    "simGuiHeight" : 776,
     "clockPeriod" : 200,
     "startAutomatically" : true,
     "simulationMaster" : true,
@@ -1450,8 +1454,8 @@
     "positionX" : 761,
     "positionY" : 473,
     "simGuiVisibleInSimulation" : true,
-    "simGuiXRelative" : 1099,
-    "simGuiYRelative" : 417,
+    "simGuiXRelative" : 1119,
+    "simGuiYRelative" : 387,
     "simGuiWidth" : 136,
     "simGuiHeight" : 155,
     "columns" : 4,
@@ -1530,21 +1534,63 @@
     "windowScreenWidthPixels" : 1024,
     "windowScreenHeightixels" : 512,
     "defaultPenColor" : 65280,
-    "image paths" : [ "media/Inicio.png", "media/cintura_asteroides.jpg", "media/pause_overlay.png", "media/quit_inicial.png", "media/Sem_energia.jpeg", "media/colisao.png" ],
+    "image paths" : [ "media/Images/Inicio.png", "media/Images/cintura_asteroides.jpg", "media/Images/pause_overlay.png", "media/Images/quit_inicial.png", "media/Images/Sem_energia.jpeg", "media/Images/colisao.png" ],
     "sounds/videos settings" : [ {
-      "filePathName" : "som_perdeu.mp3",
-      "relative sound volume" : 1.0,
-      "relative start time" : 0.09,
-      "relative stop time" : 0.45,
-      "playAsClip" : false
-    }, {
-      "filePathName" : "Spaceship.mp3",
+      "filePathName" : "media/Audio/Menu Choice play.wav",
       "relative sound volume" : 1.0,
       "relative start time" : 0.0,
       "relative stop time" : 1.0,
       "playAsClip" : false
     }, {
-      "filePathName" : "disparo.wav",
+      "filePathName" : "media/Audio/disparo.wav",
+      "relative sound volume" : 1.0,
+      "relative start time" : 0.0,
+      "relative stop time" : 1.0,
+      "playAsClip" : false
+    }, {
+      "filePathName" : "media/Audio/Spaceship.mp3",
+      "relative sound volume" : 1.0,
+      "relative start time" : 0.0,
+      "relative stop time" : 1.0,
+      "playAsClip" : false
+    }, {
+      "filePathName" : "media/Audio/Press Pause.wav",
+      "relative sound volume" : 1.0,
+      "relative start time" : 0.0,
+      "relative stop time" : 1.0,
+      "playAsClip" : false
+    }, {
+      "filePathName" : "media/Audio/Unpause.wav",
+      "relative sound volume" : 1.0,
+      "relative start time" : 0.0,
+      "relative stop time" : 1.0,
+      "playAsClip" : false
+    }, {
+      "filePathName" : "media/Audio/som_perdeu.mp3",
+      "relative sound volume" : 1.0,
+      "relative start time" : 0.12,
+      "relative stop time" : 0.5,
+      "playAsClip" : false
+    }, {
+      "filePathName" : "media/Audio/system-shutdown-63911.mp3",
+      "relative sound volume" : 1.0,
+      "relative start time" : 0.0,
+      "relative stop time" : 0.38,
+      "playAsClip" : false
+    }, {
+      "filePathName" : "media/Audio/Perder Colisao.wav",
+      "relative sound volume" : 1.0,
+      "relative start time" : 0.0,
+      "relative stop time" : 1.0,
+      "playAsClip" : false
+    }, {
+      "filePathName" : "media/Audio/PLaying_song.mp3",
+      "relative sound volume" : 1.0,
+      "relative start time" : 0.0,
+      "relative stop time" : 1.0,
+      "playAsClip" : false
+    }, {
+      "filePathName" : "media/Audio/Colisao asteoide mineravel.wav",
       "relative sound volume" : 1.0,
       "relative start time" : 0.0,
       "relative stop time" : 1.0,
@@ -1714,8 +1760,8 @@
     "positionX" : 25,
     "positionY" : 180,
     "simGuiVisibleInSimulation" : true,
-    "simGuiXRelative" : 785,
-    "simGuiYRelative" : 391,
+    "simGuiXRelative" : 771,
+    "simGuiYRelative" : 475,
     "simGuiWidth" : 293,
     "simGuiHeight" : 210,
     "clockPeriod" : 3000,
