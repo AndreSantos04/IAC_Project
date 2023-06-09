@@ -195,7 +195,6 @@ SP_handle_som:          ; pelo que nao necessita de muita memoria para a pilha
 ;    STACK 100H
 ;SP_colisao_sonda_asteroide:
 
-
 ; LOCKS dos diferentes processos e rotinas
 
 LOCK_tecla_carregada:
@@ -225,6 +224,7 @@ int_movimenta_gera_sonda:
                         ; se o LOCK estiver a 0,1,2 dispara uma sonda na posição correspondente
                         ; 0 - esquerda; 1 - frente; 2 - direita
                         ; se estiver a 4 movimenta as sondas disparadas
+
 
 ;colisao_sonda_asteroide:          ; controla o processo da testagem de possíveis colisões
 ;    LOCK 0
@@ -381,8 +381,8 @@ sonda_esquerda:
 
 sonda_frente:
     WORD 0                  ; ALCANCE
-    WORD LINHA_SONDA        ; LINHA DA SONDA NO MOMENTO
-    WORD COLUNA_SONDA_MEIO  ; COLUNA DA SONDA NO MOMENTO
+    WORD LINHA_SONDA        ; LINHA DA SONDA NO MOMENTO 
+    WORD COLUNA_SONDA_MEIO  ; COLUNA DA SONDA NO MOMENTO 
     WORD 0                  ; DECREMENTO/INCREMENTO DA COLUNA
     WORD 0                  ; ESTADO DA SONDA (0 - NÃO EXISTE, 1 - EXISTE; -1 - APAGAR)
     WORD COLUNA_SONDA_MEIO  ; GUARDA A COLUNA INICIAL
@@ -871,6 +871,7 @@ rot_inicia_jogo:
     MOV R2, DEF_NAVE                    ; Inicializa o registo 2 que vai indicar que boneco desenhar
     CALL rot_desenha_asteroide_e_nave   ; desenha a nave
 
+
     MOV R4, SOM_JOGO
     MOV [TOCA_SOM_LOOP], R4             ; toca o som de jogo em loop até ser parado
 
@@ -889,11 +890,11 @@ fim_inicia_jogo:
 ;
 ; PARÂMETROS:  R2 - tipo da tabela (nave, asteroide não minerável, asteroide 
 ;              minerável ou explosão de asteroide), a sonda é tratada noutra rotina
-;              R5 - linha do primeiro píxel do asteroide
-;              R6 - coluna do primeiro píxel do asteroide
+;              R7 - linha do primeiro píxel do asteroide
+;              R4 - coluna do primeiro píxel do asteroide
 ;
-; RETORNA: R5 e R6 no caso de se desenhar um asteroide - linha e coluna respetivamente
 ; ************************************************************************************
+
 rot_desenha_asteroide_e_nave: ; Deposita os valores dos registos abaixo no stack
 
 
@@ -1416,7 +1417,7 @@ PROCESS SP_asteroide        ; indicação de que a rotina que se segue é um pro
 proc_asteroides:
 
     MOV R8, [int_asteroide]         ; bloqueia o lock do asteroide para só andar à medida do relógio
-    
+                                    ; mas faz o processo uma vez    
     MOV R5, [estado_jogo]           ; verifica se o jogo está pausado ou se já terminou
     CMP R5, PAUSA                   ; e bloqueia o processo caso tal aconteça
     JZ pause_asteroides
@@ -1493,14 +1494,15 @@ rot_apaga_asteroides_gameover:
     PUSH R0
     PUSH R1
     PUSH R3
+    PUSH R4
     PUSH R5
     PUSH R9
     PUSH R10
     PUSH R11
 
 
+
     MOV R9, controlo_asteroides
-    MOV R3, tabela_geral_posicao
     MOV R11, R9
     ADD R11, 6                      ; guarda o endereço máximo da tabela controlo contida em R9 (limite)
 
@@ -1509,25 +1511,25 @@ apaga_asteroide:
 
     CALL rot_inicia_asteroide       ; apaga o asteroide
 
-    MOV R5, [R9]                    ; guarda o endereço da tabela de um asteroide
-    MOV R10, [R5]                   ; guarda o estado do asteróide
+    MOV R5, [R9]                    ; guarda o endereço da tabela de controlo de um asteroide
 
-
-    MOV R10, 0                      ; coloca o estado do asteroide a 0
-    MOV [R5], R10                   ; guarda o estado do asteroide na tabela de controlo
-    MOV R0, [R5+2]                  ; guarda o endereço da tabela de posições do asteroide
-    MOV [R0], R10                   ; coloca o asteroide na linha 0
-
-    MOV R1, [R3]                    ; guarda o endereço da tabela de posições
-    MOV [R1+4], R10                 ; coloca o estado a 0
-    ADD R3, 2                       ; incrementa o endereço da tabela de posições
-    ADD R9, PROXIMO_ASTEROIDE
+    reinicia_estados:
+        MOV R10, 0                  ; coloca o estado do asteroide a 0
+        MOV [R5], R10               ; guarda o estado do asteroide na tabela de controlo
+        MOV R4, [R5+6]              ; guarda a tabela da posição inicial e incremento do asteroide    
+        MOV [R4+4], R10             ; reinicia o estado dessa tabela a 0 
     
-    CMP R9, R11                     ; verifica se R9 é inferior ao limite da tabela controlo
-    JLE apaga_asteroide
+    reinicia_linha:
+        MOV R0, [R5+2]                  ; guarda o endereço da tabela de posições do asteroide
+        MOV [R0], R10                   ; coloca o asteroide na linha 0
+
+    incrementa_R9:
+        ADD R9, PROXIMO_ASTEROIDE
+        CMP R9, R11                     ; verifica se R9 é inferior ao limite da tabela controlo
+        JLE apaga_asteroide
                                    ; faz mais uma vez para a ultima posicao do asteroide
-    MOV R1, [R3]                   ; guarda o endereço da tabela de posições
-    MOV [R1+4],R10                 ; coloca O estado a 0
+    ;MOV R1, [R3]                   ; guarda o endereço da tabela de posições
+    ;MOV [R1+4],R10                 ; coloca O estado a 0
 
 fim_apaga_asteroide_gameover:
 
@@ -1535,6 +1537,7 @@ fim_apaga_asteroide_gameover:
     POP R10
     POP R9
     POP R5
+    POP R4
     POP R3
     POP R1
     POP R0
@@ -1676,7 +1679,9 @@ proc_sonda:
     CMP R4, JOGO             ; se nao estiver em jogo, bloqueia o processo
     JNZ game_over_sonda      ; bloqueia o processo
 
+
     MOV R2, DEF_SONDA                   ; guarda o endereço da tabela de desenho da sonda 
+
 
     MOV R9, controlo_sondas             ; guarda o endereço da tabela de controlo das sondas
                                         
@@ -1705,6 +1710,7 @@ disparo_frente:
 
 gera_sonda_frente:                      ; se nao existe, gera uma nova sonda nessa direcao
     CALL rot_gera_sonda
+    JMP sonda
     
     JMP proc_sonda
 disparo_esquerda:                       
@@ -1716,8 +1722,10 @@ disparo_esquerda:
 
 gera_sonda_esquerda:                    ; se nao existe, gera uma nova sonda
     CALL rot_gera_sonda
+
     
     JMP proc_sonda
+
 
 disparo_direita:                            
                 
@@ -1728,7 +1736,9 @@ disparo_direita:
 
 gera_sonda_direita:                     ; se nao existe, gera uma nova sonda
     CALL rot_gera_sonda
+
     JMP proc_sonda
+
 
 movimenta_sondas:                       ; movimenta as sondas existentes, faz um loop para cada sonda
                                         ; se ja chegaram ao alcance maximo, destroi a sonda
@@ -1746,16 +1756,220 @@ game_over_sonda:
 
 
 ; **********************************************************************
-; Rotina 
-; Movimenta as sondas existentes no jogo, ou apaga as que ja chegaram ao alcance maximo
-; Faz um loop de modo a movimentar cada sonda usa a rotina desenha sonda para as apagar, 
-; de seguida a atualiza posicao e de novo a desenha sonda para as desenhar na nova posicao
+; Rotina:
 ;
-; - PARÂMETROS:  
-;              R9 - endereço da tabela de controlo das sondas  
-;              R1 - endereço da tabela de uma sonda
+; colisao_sonda_asteroide - Processo que verifica se alguma sonda colidiu com algum asteroide,
+; se sim, o asteroide explode ser for não minerável ou diminui até desaparecer se for minerável
+;
+; PARÂMETROS: R1 - tabela da sonda
+; **********************************************************************
+
+rot_colisao_sonda_asteroide:
+    PUSH R3
+    PUSH R4
+    PUSH R5
+    PUSH R9
+    PUSH R11
+
+    MOV R9, controlo_asteroides         ; guarda a tabela de controlo dos asteroides
+    MOV R11, R9                 
+    ADD R11, 6              ; guarda o valor máximo que R9 pode tomar (a endereçar o último asteroide)
+    
+    verifica_colisao_direcoes:
+        MOV R4, 10                  ; auxiliar
+        MOV R5, [R1+R4]             ; vai buscar a coluna inicial da sonda
+
+        MOV R3, COLUNA_SONDA_ESQ    ; guarda o valor da coluna da esquerda
+        CMP R5, R3                  ; compara R3 com a coluna inicial da sonda
+        JZ verifica_colisao     ; se for a sonda da esquerda trata eventuais
+                                    ;colisões com asteroides na parte esquerda do ecrã
+
+        MOV R3, COLUNA_SONDA_MEIO
+        CMP R5, R3
+        JZ verifica_colisao
+
+        MOV R3, COLUNA_SONDA_DIR
+        CMP R5, R3
+        JZ verifica_colisao
+
+    verifica_colisao:
+        CALL rot_processa_colisao
+
+
+
+fim_colisao_sonda_asteroide:
+    POP R11
+    POP R9
+    POP R5
+    POP R4
+    POP R3
+    RET
+
+
+; **********************************************************************
+; Rotina 
+; - verifica se existem colisões no eixo central e faz a explosão se for caso disso
+;  
+; - PARÂMETROS:    
+;              R1 - tabela da sonda
+;              
+; 
+; - RETORNA: R0 (número entre 0 e 3) e R1 (número entre 0 e 4)
+; **********************************************************************
+rot_processa_colisao:
+    PUSH R0
+    PUSH R2 
+    PUSH R3 
+    PUSH R4
+    PUSH R5
+    PUSH R6
+    PUSH R8
+    PUSH R9
+    PUSH R10
+
+    verifica_linha:
+        MOV R5, [R9]                ; guarda a tabela do asteroide
+        MOV R6, [R5+6]              ; guarda a tabela que contem a coluna inicial e o incremento 
+        MOV R10, [R5+2]              ; guarda a tabela que contém a posição do asteroide
+        MOV R2, [R10]                ; guarda a linha do asteroide
+        MOV R8, 10                  ; auxiliar
+        CMP R2, R8                  ; se a primeira linha do asteroide for menor ou igual a 10 quer dizer que 
+                                    ; a sua linha final é menor ou igual a 14, e a sonda só alcança até à linha 15 
+        JLE prox_asteroide
+    
+    obtem_posicao_sonda:
+        MOV R0, [R1+2]          ; guarda a linha da sonda 
+        MOV R4, [R1+4]          ; guarda a coluna da sonda
+
+    MOV R6, [R10+2]             ; guarda a coluna do asteroide
+    
+    verifica_igualdade_coluna_meio:
+        
+        ADD R6, 2                   ; coluna do meio (onde a sonda vai bater)
+        CMP R6, R3                  ; compara a coluna do asteroide com a coluna inicial da sonda,
+        JNZ verifica_igualdade_direcao          ; só dá para este caso pois ambas as colunas não mudam
+        
+        CMP R0, R2                  ; verifica se a sonda está acima da primeira linha do asteroide
+        JLT verifica_igualdade_direcao          ; se a linha da sonda for menor que a linha do asteroide salta
+        ADD R2, 4                   ; R2 passa a conter a última linha do asteroide
+        CMP R0, R2                  ; verifica se a sonda está abaixo da última linha do asteroide
+        JGT verifica_igualdade_direcao          ; se a linha da sonda for maior que a do asteroide então ainda não lá chegou
+
+
+    colisao:
+        CALL rot_trata_colisao      
+        JMP fim_processa_colisao
+
+    verifica_igualdade_direcao:
+        
+        CMP R0, R2                  ; verifica se a sonda está acima da primeira linha do asteroide
+        JLT prox_asteroide          ; se a linha da sonda for menor que a linha do asteroide salta
+        ADD R2, 4                   ; R2 passa a conter a última linha do asteroide
+        CMP R0, R2                  ; verifica se a sonda está abaixo da última linha do asteroide
+        JGT prox_asteroide          ; se a linha da sonda for maior que a do asteroide então ainda não lá chegou
+        
+        CMP R4, R6                  ; verifica se a sonda está à esquerda
+        JLT prox_asteroide          ; se estiver à esquerda (menor coluna) salta
+        ADD R6, 4                   ; R6 passa a conter a últlima coluna
+        CMP R4, R6                  ; verifica se a sonda está à direita
+        JGT prox_asteroide          ; se estiver à esquerda (maior coluna) salta
+
+        JMP colisao                 ; se não saltou nenhuma vez é porque aconteceu colisão
+
+    prox_asteroide:
+    ADD R9, PROXIMO_ASTEROIDE
+    CMP R9,R11
+    JLE verifica_linha     
+
+fim_processa_colisao:
+    POP R10
+    POP R9
+    POP R8
+    POP R6
+    POP R5
+    POP R4
+    POP R3
+    POP R2
+    POP R0
+    RET
+
+
+; **********************************************************************
+; Rotina 
+; - verifica se existem colisões no eixo central e faz a explosão se for caso disso
+;  
+; - PARÂMETROS:    
+;              R1 - sonda
+;              R5 - tabela do asteroide 
+;              R10 - tabela posição do asteroide
 ;              
 ;
+; **********************************************************************
+
+; To do: fazer a explosão e reinicializar tanto o asteroide como a sonda
+
+rot_trata_colisao:
+    PUSH R0
+    PUSH R2
+    PUSH R4
+    PUSH R5
+    PUSH R7
+    PUSH R8
+    PUSH R10
+  
+
+    obtem_tipo_asteroide:
+        MOV R0, [R5+4]                      ; obtém a tabela que indica o tipo de asteroide
+        MOV R8, DEF_ASTEROIDE_MINERAVEL     ; guarda a constante com o endereço da tabela do tipo minerável
+        CMP R0, R8                          ; verifica se é minerável ou não
+        ;CERTO: JZ minera_asteroide
+        JZ reinicializa_valores_asteroide
+        
+    explosao:                               ; no caso de ser não minerável                              
+        MOV R2, DEF_EXPLOSAO_ASTEROIDE
+        MOV R8, 1
+        MOV [R5], R8
+        MOV R7, [R10]                       ; obtém a linha do asteroide
+        MOV R4, [R10+2]                     ; obtém a coluna do asteroide
+        CALL rot_desenha_asteroide_e_nave   ; desenha a explosão no local do asteroide
+        JMP reinicializa_valores_asteroide
+    ;minera_asteroide:
+    ;    MOV 
+
+    reinicializa_valores_asteroide:
+        MOV R4, 0       ; MOV auxiliar
+        MOV [R5], R4    ; muda o estado do asteroide para 0 para indicar que vai deixar de existir
+        MOV [R10], R4   ; reinicia a linha do asteroide a 0 
+        MOV R7, [R5+6]  ; guarda endereço da tabela da posição inicial e incremento do asteroide
+        MOV [R7+4], R4  ; altera o estado dessa tabela para 0
+
+    reinicializa_valores_sonda: ; basta o alcance pois o movimento da sonda trata do resto
+        MOV R4, 0
+        MOV [R1], R4    ; reinicializa o alcance da sonda
+
+
+fim_trata_colisao:
+
+    POP R10
+    POP R8
+    POP R7
+    POP R5
+    POP R4
+    POP R2
+    POP R0
+    RET
+
+
+; **********************************************************************
+; Rotina 
+; - gera dois números aleatórios, um entre 0 e 3, outro entre 0 e 4
+;  
+; - PARÂMETROS:    
+;              R2 - Máscara de 2 bits
+;              R4 - endereço do periférico PIN
+;
+; 
+; - RETORNA: R0 (número entre 0 e 3) e R1 (número entre 0 e 4)
 ; **********************************************************************
 
 rot_movimenta_sondas:
@@ -1765,8 +1979,8 @@ rot_movimenta_sondas:
     PUSH R5
     PUSH R6
 
-    MOV R0, 0
-
+    MOV R0, 0                           ; contador
+    
     movimento_sondas:
 
         MOV R1, [R9+R0]                 ; endereço da tabela de uma sonda
@@ -1775,14 +1989,22 @@ rot_movimenta_sondas:
         CMP R3, 0                       ; se o alcance for 0, a sonda não existe
         JZ proxima_sonda                ; passa para a próxima sonda
 
-        movimento_sonda:
-     
+
+        movimento_cada_sonda:
+        
+
             CALL rot_desenha_sonda          ; apaga a sonda
             
             CALL rot_atualiza_posicao       ; atualiza o alcance e a posição da sonda (linha e coluna) 
             
-            CMP R3, 0                       ; se o alcance for 0, a sonda já não existe pelo que nao deve ser desenhada
-            JNZ desenha
+
+            CALL rot_colisao_sonda_asteroide    ; rotina que verifica se houve colisão ao atualizar a posição
+            
+            MOV R3, [R1]                    ; alcance da sonda (intrução repetida pois a chamada
+                                            ; da rotina acima pode alterar o alcance da sonda para 0)
+            CMP R3, 0                       ; no caso do alcance ser 0 irá reiniciar a posição da sonda
+            JNZ desenha                     ; se não for 0 irá continuar o movimento (desenhando na próxima posição)
+
 
         reinicia_linha_e_coluna:            ; reinicia a linha e a coluna da sonda caso tenha chegado ao alcance maximo
             MOV R5, LINHA_SONDA
@@ -1795,6 +2017,7 @@ rot_movimenta_sondas:
 
             JMP proxima_sonda
 
+
         desenha:
 
             CALL rot_desenha_sonda          ; deseja a sonda na nova posição
@@ -1805,6 +2028,7 @@ rot_movimenta_sondas:
             CMP R0, 6                       ; se já passou por todas as sondas, termina
             JLT movimento_sondas            ; cada sonda é a word seguinte na tabela pelo que devemos adicionar 2 ao endereco anterior
                                             ; logo, havendo 3 sondas o endereco da ultimo sonda é R9+4, ou seja o R0 tem de ser menor que 6
+
 
     fim_movimenta_sondas:
         POP R6
@@ -1828,6 +2052,7 @@ rot_gera_sonda:
     PUSH R0
     PUSH R1
     PUSH R3
+
     PUSH R10
 
     MOV R3, ALCANCE_SONDA               ; guarda o alcance da sonda
@@ -1835,6 +2060,14 @@ rot_gera_sonda:
 
     SHL R0, 1                           ; multiplica R0 por 2 para ir buscar o endereco da tabela da sonda que pretendemos mudar
     MOV R1, [R9+R0]                     ; guarda o endereço da tabela da sonda que pretendemos mudar em R1
+
+
+    MOV R3, ALCANCE_SONDA               ; guarda o alcance da sonda
+    MOV [R1], R3                        ; inicia o alcance da sonda
+
+    SHL R0, 1           ; multiplica R0 por 2 para ir buscar o endereco da tabela da sonda que pretendemos mudar
+    MOV R1, [R9+R0]     ; guarda o endereço da tabela da sonda que pretendemos mudar em R1
+
     
     CALL rot_desenha_sonda              ; desenha a sonda na posição inicial da nave
 
@@ -1842,6 +2075,7 @@ rot_gera_sonda:
     MOV [TOCA_SOM], R10                 ; toca o som de disparo da sonda
 
     MOV R10, DISPLAY_ENERGIA_SONDA      ; guarda o valor de diminuição de energia por cada sonda criada
+
 
     MOV [int_energia_display], R10      ; desbloqueia o processo de atualização do display de energia, para diminuir a energia por cada sonda criada
     
@@ -1873,12 +2107,16 @@ rot_apaga_sondas_gameover:
     PUSH R11
 
 
+
     MOV R1, controlo_sondas         ; guarda o endereço da tabela controlo das sondas
     MOV R11, R1
     ADD R11, 4                      ; guarda o endereço máximo da tabela controlo contida em R9 (limite)
                                     ; existem 3 sondas, logo o endereço máximo é R9+4, visto que cada sonda representa 1 WORD na tabela
 
+
 reseta_sondas:
+
+
 
     MOV R5, [R1]                    ; guarda o endereço da tabela de uma sonda
     MOV R10, [R5+8]                 ; guarda o estado da sonda
@@ -1951,7 +2189,7 @@ rot_testa_colisao_nave:
     CMP R5, R6
     JZ fim_testa_colisao_nave
 
-    ; Como sabemos que os asteroides que andam noutros sentidos vão todos para à nave se
+    ; Como sabemos que os asteroides que andam noutros sentidos vão todos parar à nave se
     ; não forem destruídos, basta comparar a sua linha com a linha anterior à linha da nave
     testa_colisao:
         MOV R1, [R0+2]                  ; guarda o endereço da tabela de posição do asteroide
