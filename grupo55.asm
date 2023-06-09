@@ -8,11 +8,10 @@
 ; 0 - Dispara a sonda da esquerda
 ; 1 - Dispara a sonda do meio
 ; 2 - Dispara a sonda da direita
-; 3 - Muta/Desmuta o som do jogo
 ; C - Começa o jogo
 ; D - Pausa o jogo
 ; E - Terminar o jogo
-
+; F - Muta/Desmuta o som do jogo
 
 
 ; *********************************************************************************
@@ -107,7 +106,7 @@ TECLA_JOGO_TERMINA        EQU 000EH    ; tecla que termina o jogo
 TECLA_DISPARO_FRENTE      EQU 0001H    ; tecla que dispara para a frente
 TECLA_DISPARO_ESQUERDA    EQU 0000H    ; tecla que dispara para a esquerda
 TECLA_DISPARO_DIREITA     EQU 0002H    ; tecla que dispara para a direita
-TECLA_MUTED               EQU 0003H    ; tecla que muda o estado do som
+TECLA_MUTED               EQU 000FH    ; tecla que muda o estado do som
 
 
 JOGO                      EQU 0    ; estado do jogo: jogo
@@ -568,9 +567,9 @@ PROCESS SP_handle_som
 
 proc_handle_som:
     MOV R0, [LOCK_tecla_carregada]  
+    MOV R1, TECLA_MUTED         ; verifica se a tecla carregada foi a de mutar o som (F)
 
-
-    CMP R0, TECLA_MUTED         ; verifica se a tecla carregada foi a de mutar o som (3)
+    CMP R0, TECLA_MUTED         ; verifica se a tecla carregada foi a de mutar o som (F)
     JNZ proc_handle_som
     
     som:
@@ -747,7 +746,7 @@ proc_fim_jogo:
     CMP R4, TERMINADO         ; verifica se o jogo já acabou
     JZ verifica_recomeca_jogo ; espera até carregar na tecla de reinciiar o jogo (C)
     
-    ;JMP proc_fim_jogo         inutil?
+
 
 perdeu_sem_energia:
 
@@ -1710,8 +1709,7 @@ disparo_frente:
 
 gera_sonda_frente:                      ; se nao existe, gera uma nova sonda nessa direcao
     CALL rot_gera_sonda
-    JMP sonda
-    
+
     JMP proc_sonda
 disparo_esquerda:                       
                                         
