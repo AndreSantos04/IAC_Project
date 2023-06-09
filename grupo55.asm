@@ -75,7 +75,7 @@ ALTURA			        EQU	5		; altura do asteroide e da nave
 LARGURA_NAVE            EQU 15
 LARGURA_PAINEL_NAVE		EQU 7
 ALTURA_PAINEL_NAVE		EQU 2	
-
+ALTURA_LARGURA_3x3      EQU 3
 ;*Constantes - movimento
 ATRASO			EQU	0005H		; (inicialmente a 400) atraso para limitar a velocidade de movimento do asteroide/nave
 ALCANCE_SONDA   EQU 000CH 		; alcance maximo da sonda
@@ -276,6 +276,15 @@ DEF_ASTEROIDE_MINERAVEL:			; tabela que define o asteroide minerável
     WORD		VERDE , VERDE , VERDE , VERDE , VERDE 
 	WORD		0 , VERDE , VERDE , VERDE , 0	
 
+DEF_ASTEROIDE_MINERAVEL_3x3:            ; tabela que define o asteroide minerável na primeira iteração do seu desparecimento
+    WORD		ALTURA_LARGURA_3x3      ; largura
+    WORD        ALTURA_LARGURA_3x3      ; altura
+    WORD		VERDE , VERDE , VERDE 
+    WORD        VERDE , AMARELO , VERDE 
+    WORD		VERDE , VERDE , VERDE 
+
+
+
 DEF_EXPLOSAO_ASTEROIDE:			    ; tabela que define o asteroide quando explode 
 	WORD		LARGURA_ASTEROIDE
     WORD        ALTURA
@@ -341,7 +350,6 @@ controlo_asteroide_0:
     WORD 0                  ; tipo de tabela do asteroide (irá depois ser alterada para minerável ou não) 
     WORD 0                  ; indica qual a tabela de posição incial/incremento foi atribuída ao asteroide 
     WORD 1                  ; indica o ecra de pixeis onde o asteroide se encontra
-    WORD 0                  ; indica se este asteroide já foi desenhado alguma vez ou não
 
 controlo_asteroide_2:
     WORD 0                  
@@ -349,7 +357,6 @@ controlo_asteroide_2:
     WORD 0
     WORD 0                  
     WORD 2
-    WORD 0
 
 controlo_asteroide_4:
     WORD 0                  
@@ -357,14 +364,14 @@ controlo_asteroide_4:
     WORD 0
     WORD 0      
     WORD 3            
-    WORD 0
+
 controlo_asteroide_6:
     WORD 0                  
     WORD posicao_asteroide_6
     WORD 0
     WORD 0
     WORD 4
-    WORD 0
+
 
 ; * tabela de controlo de todos os asteroides
 controlo_asteroides:        
@@ -900,7 +907,7 @@ fim_inicia_jogo:
 ;              minerável ou explosão de asteroide), a sonda é tratada noutra rotina
 ;              R7 - linha do primeiro píxel do asteroide
 ;              R4 - coluna do primeiro píxel do asteroide
-;
+;              R9 - tabela com os endereços das tabelas de controlo dos asteroides
 ; ************************************************************************************
 
 rot_desenha_asteroide_e_nave: ; Deposita os valores dos registos abaixo no stack
@@ -917,6 +924,10 @@ rot_desenha_asteroide_e_nave: ; Deposita os valores dos registos abaixo no stack
     PUSH R10
     PUSH R11
     
+
+    MOV R8, DEF_ASTEROIDE_MINERAVEL_3x3 ; guarda o endereço da tabela que define o asteroide mineravel 3x3
+    CMP R2, R8                          ; se for minerável 3x3 não tem estado então salta logo para o desenha
+    JZ desenha_asteroide_e_nave
 
     MOV R8, DEF_NAVE                    ; guarda o valor da memória na primeira posição da tabela que define a nave 
     CMP R2, R8                          ; verifica se foi pedido para desenhar uma nave
@@ -964,7 +975,11 @@ rot_desenha_asteroide_e_nave: ; Deposita os valores dos registos abaixo no stack
 
     muda_estado_asteroide:          ; define se a próxima chamada da rotina é para apagar(-1) ou desenhar(1)                      
         MOV R5, LARGURA_NAVE
-        CMP R6, R5                  ; verifica se estamos a desenhar uma nave, se sim, ignoram-se as instruções abaixo
+        CMP R6, R5                  ; verifica se estamos a desenhar uma nave, se sim, ignora-se a mudança de estado
+        JZ fim_desenha_asteroide_e_nave
+        
+        MOV R5, ALTURA_LARGURA_3x3
+        CMP R6, R5                  ; verifica se estamos a desenhar um minerável 3x3, se sim, ignora-se a mudança de estado
         JZ fim_desenha_asteroide_e_nave
 
         CMP R10, -1                  ; se for um irá mudar para -1 e vice-versa, se for 0 muda para -1 também
@@ -972,7 +987,7 @@ rot_desenha_asteroide_e_nave: ; Deposita os valores dos registos abaixo no stack
         
         muda_para_apagar:
             MOV R5, -1              
-            MOV [R11], R5           ; no caso de R10 estar a 1 ou a 0 passa a -1
+            MOV [R11], R5           ; no caso de R5 estar a 1 ou a 0 passa a -1
             JMP fim_desenha_asteroide_e_nave
 
         muda_para_desenhar:
@@ -999,11 +1014,13 @@ rot_desenha_asteroide_e_nave: ; Deposita os valores dos registos abaixo no stack
 ; preenche os pixeis de uma linha, ou com a cor presente em cada pixel da tabela
 ; do objeto, se R10 for diferente de -1 ou com cor 0, ou seja, apaga os pixels
 ;
-; PARÂMETROS:  R2 - tipo da tabela (nave, asteroide não minerável, asteroide 
-;              minerável ou explosão de asteroide), a sonda é tratada noutra rotina
+; PARÂMETROS:  R2 - tipo da tabela (nave, sonda, asteroide não minerável, asteroide 
+;                   minerável ou explosão de asteroide)
+;              R3 - no caso de R10 ser -1, R3 indica a cor do pixel (0 para apagar)
+;              R6 - largura do objeto
 ;              R7 - linha do objeto
 ;              R4 - coluna do objeto
-;
+;              R10 - estado do objeto
 ; ************************************************************************************
 
 rot_desenha_pixels_linha:       		; desenha os pixels do asteroide/nave a partir da tabela
@@ -1026,7 +1043,6 @@ rot_desenha_pixels_linha:       		; desenha os pixels do asteroide/nave a partir
     JNZ preenche_pixel      ; se não, salta
     
     MOV R0, 8               ; guarda o número 8 por ser demasiado grande para adicionar diretamente
-    ;MOV R10, 0              ; se for tabela de cores é para desenhar por isso R10 não pode ser -1     inutil?
     ADD R8, R0              ; Guarda em R8 o endereço da última cor da tabela 
 
     preenche_pixel:
@@ -1786,8 +1802,6 @@ proc_colisao_sonda_asteroide:
     MOV R1, [LOCK_colisoes]     ; bloqueia o processo (mas faz uma vez) e lê a tabela da sonda
 
     MOV R9, controlo_asteroides         ; guarda a tabela de controlo dos asteroides
-    MOV R11, R9                 
-    ADD R11, 6              ; guarda o valor máximo que R9 pode tomar (a endereçar o último asteroide)
     
     verifica_colisao_direcoes:
         MOV R4, 10                  ; auxiliar
@@ -1800,6 +1814,7 @@ proc_colisao_sonda_asteroide:
         MOV R3, COLUNA_SONDA_MEIO   ; guarda o valor da coluna do meio
         CMP R5, R3                  ; compara R5 com a coluna inicial da sonda
         JZ verifica_colisao         
+
         MOV R3, COLUNA_SONDA_DIR    ; guarda o valor da coluna da direita
         CMP R5, R3                  ; compara R5 com a coluna inicial da sonda
         JZ verifica_colisao         
@@ -1829,13 +1844,13 @@ rot_processa_colisao:
     PUSH R6
     PUSH R8
     PUSH R9
-    PUSH R10
+    PUSH R11
 
     verifica_linha:
         MOV R5, [R9]                ; guarda a tabela do asteroide
         MOV R6, [R5+6]              ; guarda a tabela que contem a coluna inicial e o incremento 
-        MOV R10, [R5+2]              ; guarda a tabela que contém a posição do asteroide
-        MOV R2, [R10]                ; guarda a linha do asteroide
+        MOV R11, [R5+2]              ; guarda a tabela que contém a posição do asteroide
+        MOV R2, [R11]                ; guarda a linha do asteroide
         MOV R8, 10                  ; auxiliar
         CMP R2, R8                  ; se a primeira linha do asteroide for menor ou igual a 10 quer dizer que 
                                     ; a sua linha final é menor ou igual a 14, e a sonda só alcança até à linha 15 
@@ -1845,7 +1860,7 @@ rot_processa_colisao:
         MOV R0, [R1+2]          ; guarda a linha da sonda 
         MOV R4, [R1+4]          ; guarda a coluna da sonda
 
-    MOV R6, [R10+2]             ; guarda a coluna do asteroide
+    MOV R6, [R11+2]             ; guarda a coluna do asteroide
     
     verifica_igualdade_coluna_meio:
         
@@ -1881,13 +1896,15 @@ rot_processa_colisao:
 
         JMP colisao                 ; se não saltou nenhuma vez é porque aconteceu colisão
 
-    prox_asteroide:
-    ADD R9, PROXIMO_ASTEROIDE
-    CMP R9,R11
-    JLE verifica_linha     
+    prox_asteroide:     
+    MOV R11, controlo_asteroides    ; auxiliar    
+    ADD R11, 6              ; guarda o valor máximo da tabela controlo em que ainda existe uma tabela de controlo de um asteroide
+    ADD R9, PROXIMO_ASTEROIDE       ; passa a apontar para a tabela de controlo do próximo asteroide
+    CMP R9,R11          
+    JLE verifica_linha      ; recomeça o loop para verificar se a sonda bateu com o próximo asteroide     
 
 fim_processa_colisao:
-    POP R10
+    POP R11
     POP R9
     POP R8
     POP R6
@@ -1906,7 +1923,7 @@ fim_processa_colisao:
 ; - PARÂMETROS:    
 ;              R1 - sonda
 ;              R5 - tabela do asteroide 
-;              R10 - tabela posição do asteroide
+;              R11 - tabela posição do asteroide
 ;              
 ;
 ; **********************************************************************
@@ -1916,33 +1933,38 @@ fim_processa_colisao:
 rot_trata_colisao:
     PUSH R0
     PUSH R2
+    PUSH R3
     PUSH R4
     PUSH R5
+    PUSH R6
     PUSH R7
     PUSH R8
     PUSH R10
   
+    apaga_sonda:
+        CALL rot_desenha_sonda
 
     obtem_tipo_asteroide:
         MOV R0, [R5+4]                      ; obtém a tabela que indica o tipo de asteroide
-        MOV R8, DEF_ASTEROIDE_MINERAVEL     ; guarda a constante com o endereço da tabela do tipo minerável
-        CMP R0, R8                          ; verifica se é minerável ou não
+        MOV R2, DEF_ASTEROIDE_MINERAVEL     ; guarda a constante com o endereço da tabela do tipo minerável
+        CMP R0, R2                          ; verifica se é minerável ou não
         JZ minera_asteroide
 
         
-    explosao:                               ; no caso de ser não minerável                              
+    explosao:                               ; colisao da sonda com asteroide nao mineravel                            
         MOV R4, SOM_ASTEROIDEDESTRUIDO
         MOV [TOCA_SOM], R4                  ; toca o som da explosão do asteroide não minerável 
-                                            ; colisao da sonda com asteroide nao mineravel
-        
+                                            
         MOV R2, DEF_EXPLOSAO_ASTEROIDE
         MOV R8, 1
         MOV [R5], R8
-        MOV R7, [R10]                       ; obtém a linha do asteroide
-        MOV R4, [R10+2]                     ; obtém a coluna do asteroide
+        MOV R7, [R11]                       ; obtém a linha do asteroide
+        MOV R4, [R11+2]                     ; obtém a coluna do asteroide
         CALL rot_desenha_asteroide_e_nave   ; desenha a explosão no local do asteroide
+        CALL rot_desenha_asteroide_e_nave
         JMP reinicializa_valores_asteroide
-    minera_asteroide:
+
+    minera_asteroide:                       ; recebe R2 com DEF_ASTEROIDE_MINERAVEL
         MOV R4, SOM_ASTEROIDEMINERAVEL
         MOV [TOCA_SOM], R4                  ; toca o som da colisao da sonda com o asteroide minerável
         
@@ -1950,18 +1972,47 @@ rot_trata_colisao:
         MOV [int_energia_display], R4       ; indica que a energia aumentou (25%)
                                             ; desbloqueia o processo display para atualizar o display
                                             ; face ao aumento da energia 
+    desaparece_asteroide_mineravel:         
+        MOV R10, -1                 ; auxiliar
+        MOV [R5],R10                ; muda o estado do asteroide para -1 para apagá-lo
+        MOV R3, [R5+2]              ; tabela de posição do asteroide
+        MOV R4, [R3+2]              ; coluna do asteroide
+        MOV R7,[R3]                 ; linha do asteroide
+        
+    apaga_asteroide_mineravel:
+        CALL rot_desenha_asteroide_e_nave           ; apaga asteroide minerável
+        
 
-    ; apagar a explosão e só depois desenhar o asteroide na posição inicial
+    mineravel_3x3:
+        ADD R7, 1                               ; passa à linha do asteroide 3x3
+        ADD R4, 1                               ; obtém coluna
+        MOV R10, 1
+        MOV R2, DEF_ASTEROIDE_MINERAVEL_3x3     ; atualiza R2 para a tabela do asteroide 3x3
+        CALL rot_desenha_asteroide_e_nave           ; desenha asteroide minerável 3x3
+        MOV R10, -1                             ; atualiza R10 para apagar
+        CALL rot_desenha_asteroide_e_nave           ; apaga asteroide minerável 3x3
+
+    mineravel_1x1:
+        ADD R7, 1                               ; passa à linha do asteroide 1x1
+        ADD R4, 1                               ; obtém coluna
+        MOV R3, AMARELO
+        MOV  [DEFINE_LINHA], R7	    ; seleciona a linha
+        MOV  [DEFINE_COLUNA], R4	; seleciona a coluna
+        MOV  [DEFINE_PIXEL], R3	    ; altera a cor do pixel na linha e coluna selecionadas
+        MOV R3, 0
+        MOV  [DEFINE_LINHA], R7	    ; seleciona a linha
+        MOV  [DEFINE_COLUNA], R4	; seleciona a coluna
+        MOV  [DEFINE_PIXEL], R3	    ; altera a cor do pixel na linha e coluna selecionadas
+        
+
     reinicializa_valores_asteroide:
         MOV R4, 0       ; MOV auxiliar
         MOV [R5], R4    ; muda o estado do asteroide para 0 para indicar que vai deixar de existir
-        MOV [R10], R4   ; reinicia a linha do asteroide a 0 
+        MOV [R11], R4   ; reinicia a linha do asteroide a 0 
         MOV R7, [R5+6]  ; guarda endereço da tabela da posição inicial e incremento do asteroide
         MOV [R7+4], R4  ; altera o estado dessa tabela para 0
 
-    apaga_sonda:
-        CALL rot_desenha_sonda
-
+    
     reinicializa_valores_sonda: ; basta o alcance pois o movimento da sonda trata do resto    
         MOV R4, 0
         MOV [R1], R4    ; reinicializa o alcance da sonda
@@ -1975,12 +2026,13 @@ rot_trata_colisao:
         MOV [R1+4], R4                  ; volta a coluna incial
         
 fim_trata_colisao:
-
     POP R10
     POP R8
     POP R7
+    POP R6
     POP R5
     POP R4
+    POP R3
     POP R2
     POP R0
     RET
