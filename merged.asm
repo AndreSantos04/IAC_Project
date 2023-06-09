@@ -1658,8 +1658,8 @@ disparo_frente:
 
 gera_sonda_frente:                      ; se nao existe, gera uma nova sonda nessa direcao
     CALL rot_gera_sonda
-    
     JMP proc_sonda
+
 disparo_esquerda:                       
                                         
     MOV R1, [R9]                        ; vai buscar o endereço da tabela de controlo da sonda da esquerda
@@ -1670,7 +1670,6 @@ disparo_esquerda:
 gera_sonda_esquerda:                    ; se nao existe, gera uma nova sonda
     CALL rot_gera_sonda
 
-    
     JMP proc_sonda
 
 
@@ -1881,7 +1880,10 @@ rot_trata_colisao:
         MOV R7, [R5+6]  ; guarda endereço da tabela da posição inicial e incremento do asteroide
         MOV [R7+4], R4  ; altera o estado dessa tabela para 0
 
-    reinicializa_valores_sonda: ; basta o alcance pois o movimento da sonda trata do resto
+    apaga_sonda:
+        CALL rot_desenha_sonda
+
+    reinicializa_valores_sonda: ; basta o alcance pois o movimento da sonda trata do resto    
         MOV R4, 0
         MOV [R1], R4    ; reinicializa o alcance da sonda
 
@@ -1995,11 +1997,6 @@ rot_gera_sonda:
 
     MOV R3, ALCANCE_SONDA               ; guarda o alcance máximo da sonda
     MOV [R1], R3                        ; inicia o alcance da sonda
-    SHL R0, 1                           ; multiplica R0(número da sonda) por 2 para ir buscar
-                                        ; o endereco da tabela da sonda que pretendemos mudar
-
-    MOV R1, [R9+R0]     ; guarda o endereço da tabela da sonda que pretendemos mudar em R1
-
     
     CALL rot_desenha_sonda              ; desenha a sonda na posição inicial da nave
 
