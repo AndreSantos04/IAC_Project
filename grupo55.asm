@@ -430,7 +430,7 @@ controlo_sondas:
 ; * Tabelas das 5 possíveis combinações:
 ; 1ª word: coluna inicial
 ; 2ª word: incremento /decremento da coluna para o movimento
-; 3ª word: se está a ser utilizada por algum asteroide ou não
+; 3ª word: se está a ser utilizada por algum asteroide ou não (esta WORD nao é utilizada no projeto original, para a utilizar deve retirar os comentarios da linhas )
 
 inicio_esquerda_move_direita:
     WORD    MIN_COLUNA          
@@ -1730,20 +1730,23 @@ rot_inicia_asteroide:
             ADD R3, R1                   ; vai adicionar um certo valor par de 0 a 8 a R3 de modo a obter o endereço de uma tabela de direção
             MOV R5, [R3]                 ; guarda o endereço da tabela escolhida
             
-        ; Opção que remove a possibilidade de dois asteroides terem a mesma direção e coluna inicial
-            MOV R11, [R5+4]         ; acede à word que guarda se a tabela está a ser usada ou não
-            CMP R11, 0
-            JZ muda_estado_tabela   ;no caso de não estar a ser usada salta
-            
-            CALL rot_gera_aleatorio             ; se já estiver a ser usada vai buscar outro número aleatório 
-            
-            MOV R3, tabela_geral_posicao        ; reinicia R3 com o endereço da tabela das combinações de posições possíveis
-            JMP obtem_tabela_coluna_incremento  ; tenta de novo com outro número 
+        ;**************************************************
+            ; Opção que remove a possibilidade de dois asteroides terem a mesma direção e coluna inicial
+            ;MOV R11, [R5+4]         ; acede à word que guarda se a tabela está a ser usada ou não
+            ;CMP R11, 0
+            ;JZ muda_estado_tabela   ;no caso de não estar a ser usada salta
+            ;
+            ;CALL rot_gera_aleatorio             ; se já estiver a ser usada vai buscar outro número aleatório 
+            ;
+            ;MOV R3, tabela_geral_posicao        ; reinicia R3 com o endereço da tabela das combinações de posições possíveis
+            ;JMP obtem_tabela_coluna_incremento  ; tenta de novo com outro número 
+       
+            ;muda_estado_tabela:
+            ;    MOV R11, 1           ; MOV auxiliar
+            ;    MOV [R5+4], R11      ; altera o estado da tabela de 0 para 1 (utilizada por um asteroide)
+        ;**************************************************
         
-        muda_estado_tabela:
-            MOV R11, 1           ; MOV auxiliar
-            MOV [R5+4], R11      ; altera o estado da tabela de 0 para 1 (utilizada por um asteroide)
-            MOV [R10+6], R5      ; guarda esta tabela na tabela de controlo do asteroide
+        MOV [R10+6], R5      ; guarda esta tabela na tabela de controlo do asteroide
 
         define_coluna_inicial:
             
@@ -1895,10 +1898,7 @@ proc_colisao_sonda_asteroide:
     
     MOV R1, [LOCK_colisoes]     ; bloqueia o processo (mas faz uma vez) e lê a tabela da sonda
 
-    ;verifica_colisoes:
-
-    MOV R0, controlo_sondas     ; guarda a tabela de controlo das sondas
-               
+    MOV R0, controlo_sondas     ; guarda a tabela de controlo das sondas             
     
     MOV R9, controlo_asteroides         ; guarda a tabela de controlo dos asteroides
     
@@ -1931,7 +1931,7 @@ proc_colisao_sonda_asteroide:
         CMP R0, R11                     ; compara se ja chegou ao fim da tabela de controlo das sondas
         
         JLE verifica_colisao_direcoes   ; se nao chegou, verifica as colisoes da proxima sonda
-       
+
     JMP proc_colisao_sonda_asteroide
 
 
