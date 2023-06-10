@@ -429,7 +429,7 @@ controlo_sondas:
 ; * Tabelas das 5 possíveis combinações:
 ; 1ª word: coluna inicial
 ; 2ª word: incremento /decremento da coluna para o movimento
-; 3ª word: se está a ser utilizada por algum asteroide ou não
+; 3ª word: se está a ser utilizada por algum asteroide ou não (esta WORD nao é utilizada no projeto original, para a utilizar deve retirar os comentarios da linhas )
 
 inicio_esquerda_move_direita:
     WORD    MIN_COLUNA          
