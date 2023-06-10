@@ -1846,9 +1846,13 @@ proc_colisao_sonda_asteroide:
     
     MOV R1, [LOCK_colisoes]     ; bloqueia o processo (mas faz uma vez) e lê a tabela da sonda
 
+    MOV R0, controlo_sondas     ; guarda a tabela de controlo das sondas
+               
+    
     MOV R9, controlo_asteroides         ; guarda a tabela de controlo dos asteroides
     
     verifica_colisao_direcoes:
+        MOV R1, [R0]                ; vai buscar o endereço da tabela de controlo de uma sonda
         MOV R4, 10                  ; auxiliar
         MOV R5, [R1+R4]             ; vai buscar a coluna inicial da sonda
 
@@ -1861,11 +1865,22 @@ proc_colisao_sonda_asteroide:
         JZ verifica_colisao         
 
         MOV R3, COLUNA_SONDA_DIR    ; guarda o valor da coluna da direita
-        CMP R5, R3                  ; compara R5 com a coluna inicial da sonda
-        JZ verifica_colisao         
+                                    ; senao for nenhuma das sondas anteriores tem necessariamente 
+                                    ; de ser a sonda da direita
 
     verifica_colisao:
         CALL rot_processa_colisao   ; chama a rotina que verifica e trata se houverem a/as colisões
+
+    proxima_sonda_colisao:
+
+        ADD R0, 2
+        MOV R11,controlo_sondas     ; sao 3 sondas logo o enderço da ultima sonda e o endereço da tabela de controlo + 4
+        ADD R11, 4                  ; guarda o ultimo endereco
+
+        CMP R0, R11                     ; compara se ja chegou ao fim da tabela de controlo das sondas
+        
+        JLE verifica_colisao_direcoes   ; se nao chegou, verifica as colisoes da proxima sonda
+
 
     JMP proc_colisao_sonda_asteroide
 
@@ -1876,6 +1891,7 @@ proc_colisao_sonda_asteroide:
 ;  
 ; - PARÂMETROS:    
 ;              R1 - tabela da sonda
+;              R3 - coluna inicial da sonda
 ;              
 ; 
 ; - RETORNA: R0 (número entre 0 e 3) e R1 (número entre 0 e 4)
@@ -1894,8 +1910,8 @@ rot_processa_colisao:
     verifica_linha:
         MOV R5, [R9]                ; guarda a tabela do asteroide
         MOV R6, [R5+6]              ; guarda a tabela que contem a coluna inicial e o incremento 
-        MOV R11, [R5+2]              ; guarda a tabela que contém a posição do asteroide
-        MOV R2, [R11]                ; guarda a linha do asteroide
+        MOV R11, [R5+2]             ; guarda a tabela que contém a posição do asteroide
+        MOV R2, [R11]               ; guarda a linha do asteroide
         MOV R8, 10                  ; auxiliar
         CMP R2, R8                  ; se a primeira linha do asteroide for menor ou igual a 10 quer dizer que 
                                     ; a sua linha final é menor ou igual a 14, e a sonda só alcança até à linha 15 
