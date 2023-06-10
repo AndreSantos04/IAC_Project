@@ -1682,14 +1682,14 @@ rot_inicia_asteroide:
             ;CMP R6, 1                  INUTIL
             ;JZ muda_estado_tabela
             
-            MOV R11, [R5+4]         ; acede à word que guarda se a tabela está a ser usada ou não
-            CMP R11, 0
-            JZ muda_estado_tabela   ;no caso de não estar a ser usada salta
-            
-            CALL rot_gera_aleatorio             ; se já estiver a ser usada vai buscar outro número aleatório 
-            
-            MOV R3, tabela_geral_posicao        ; reinicia R3 com o endereço da tabela das combinações de posições possíveis
-            JMP obtem_tabela_coluna_incremento  ; tenta de novo com outro número 
+            ;MOV R11, [R5+4]         ; acede à word que guarda se a tabela está a ser usada ou não
+            ;CMP R11, 0
+            ;JZ muda_estado_tabela   ;no caso de não estar a ser usada salta
+            ;
+            ;CALL rot_gera_aleatorio             ; se já estiver a ser usada vai buscar outro número aleatório 
+            ;
+            ;MOV R3, tabela_geral_posicao        ; reinicia R3 com o endereço da tabela das combinações de posições possíveis
+            ;JMP obtem_tabela_coluna_incremento  ; tenta de novo com outro número 
         
         muda_estado_tabela:
             MOV R11, 1           ; MOV auxiliar
