@@ -430,7 +430,7 @@ controlo_sondas:
 ; * Tabelas das 5 possíveis combinações:
 ; 1ª word: coluna inicial
 ; 2ª word: incremento /decremento da coluna para o movimento
-; 3ª word: se está a ser utilizada por algum asteroide ou não (esta WORD nao é utilizada no projeto original, para a utilizar deve retirar os comentarios da linhas )
+; 3ª word: se está a ser utilizada por algum asteroide ou não (esta WORD nao é utilizada no projeto original, para a utilizar deve retirar os comentarios da linhas 1733 a 1747)
 
 inicio_esquerda_move_direita:
     WORD    MIN_COLUNA          
@@ -1884,12 +1884,12 @@ game_over_sonda:
 
 
 ; **********************************************************************
-; Rotina:
+; processo
 ;
 ; colisao_sonda_asteroide - Processo que verifica se alguma sonda colidiu com algum asteroide,
 ; se sim, o asteroide explode ser for não minerável ou diminui até desaparecer se for minerável
 ;
-; PARÂMETROS: R1 - tabela da sonda
+; 
 ; **********************************************************************
 
 PROCESS SP_colisoes
@@ -2252,14 +2252,10 @@ fim_apaga_explodidos:
 
 ; **********************************************************************
 ; Rotina 
-; - gera dois números aleatórios, um entre 0 e 3, outro entre 0 e 4
-;  
-; - PARÂMETROS:    
-;              R2 - Máscara de 2 bits
-;              R4 - endereço do periférico PIN
+; - movimenta as sondas
 ;
-; 
-; - RETORNA: R0 (número entre 0 e 3) e R1 (número entre 0 e 4)
+;
+; PARÂMETROS - R9 - endereço controla sondas
 ; **********************************************************************
 
 rot_movimenta_sondas:
