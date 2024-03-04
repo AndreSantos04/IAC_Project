@@ -1,3 +1,4 @@
-Project made in PEPE16 Assembly, consists in a game where you have to destroy meteors that destroy your spaceship if they collide. 
+# IAC_Project
+Computer Architecture Introduction Project
 
-Made for Computers Architecture Introduction
+Project made in PEPE16 Assembly, consists in a game where you have to destroy meteors that could collide with your spaceship. 
